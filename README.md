@@ -63,7 +63,40 @@ Blocked commands are hidden from the `/` popup and, if typed in full, produce
 the stock `Unrecognized command` message. Both go through one filter, because
 the popup and typed dispatch share a single choke point.
 
-Design notes and the source-level reasoning are in **[docs/spec.md](docs/spec.md)**.
+**4. Queued input is recorded the instant it is queued.**
+
+Submit while a turn is running and codex holds the message in memory only. It
+reaches the transcript when the running turn finally ends, so until then nothing
+outside the process can tell an accepted message from a dropped one. Minds shows
+an optimistic bubble on send and flips it to "Queued" once the backend confirms
+acceptance -- but codex's confirmation comes from the `active` marker, set by the
+UserPromptSubmit hook, which by definition does not fire for a message that was
+queued rather than started.
+
+Each queued message now appends one line to `$CODEX_HOME/queued_input.jsonl`:
+
+```json
+{"type":"queued_input","queued_id":"...","thread_id":"...","timestamp":"...","content":"..."}
+```
+
+codex's queue itself is untouched -- ordering, draining and the slash-command
+paths all behave exactly as before. This only observes the branch that was
+already there.
+
+`queued_id` is a correlation id. Claude Code's equivalent records omit one and
+leave readers matching on message text, which is brittle enough that the Minds
+frontend carries a FIXME asking for exactly this.
+
+> **Why a sidecar and not the rollout.** The rollout JSONL is written by core,
+> and the TUI reaches core through the in-process app-server -- appending a
+> rollout item from the TUI needs a new protocol request, a processor and a core
+> handler across four crates. The trade-off is that these records are not part of
+> the durable session and do not survive `codex resume`. That is fine: they
+> answer "was this accepted, right now", and the message still lands in the
+> rollout as a normal user turn once it is sent.
+
+Design notes and the source-level reasoning are in **[docs/spec.md](docs/spec.md)**
+and **[docs/spec-queued-transcript.md](docs/spec-queued-transcript.md)**.
 
 ---
 
@@ -228,7 +261,7 @@ because they live inside the function being called.
 ## Verification
 
 Every build runs `cargo test -p codex-tui --lib minds_` and refuses to produce a
-binary if it fails. Nine tests, all added by the patch:
+binary if it fails. Thirteen tests, all added by the patch:
 
 | test | guards |
 |---|---|
@@ -241,6 +274,10 @@ binary if it fails. Nine tests, all added by the patch:
 | `minds_blocked_commands_do_not_resolve` | every blocked command fails lookup |
 | `minds_blocked_command_aliases_do_not_resolve` | `/quit`, `/btw`, `/subagents` are blocked too |
 | `minds_allowed_commands_still_resolve` | `/model`, `/status`, `/diff`, `/compact`, `/review` still work — without this, a filter bug that hides *everything* would pass the two tests above |
+| `minds_queued_input_record_is_one_json_line` | the record is a single parseable line |
+| `minds_queued_input_record_escapes_newlines_in_content` | a newline in the message cannot forge a second record |
+| `minds_append_queued_input_appends_rather_than_truncates` | a second queued message does not clobber the first, and ids are distinct |
+| `minds_append_queued_input_survives_an_unwritable_directory` | a failed write never stops the message being queued |
 
 ### Known-red upstream tests
 

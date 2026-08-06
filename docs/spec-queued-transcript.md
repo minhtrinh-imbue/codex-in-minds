@@ -3,7 +3,8 @@
 Goal: when a user types while a turn is running, codex should record that in its
 transcript, not only in memory — the way Claude Code already does.
 
-Status: spec only. Nothing built.
+Status: **BUILT**, as a sidecar rather than a rollout item. §4 explains why the
+rollout route was abandoned; §5 describes what shipped.
 
 ---
 
@@ -132,8 +133,9 @@ there is no existing path for the TUI to append a rollout item.**
 
 | option | verdict |
 |---|---|
-| **A. New `Op` + core handler.** TUI sends an op; the core handler calls `persist_rollout_items`. | **Recommended.** Preserves a single writer and reuses the `handlers.rs:523` pattern exactly. |
+| A. New app-server request + core handler. | **Abandoned after tracing it.** The TUI does not send raw `Op`s — it talks to core through the in-process app-server client, so this needs params/response types, a `common.rs` request entry, a processor, a client method, an `AppCommand` variant and its routing arm: 9 files across 4 crates, plus protocol schema churn. |
 | B. TUI writes the rollout file directly. | Rejected. Two writers on one file, and core owns truncation and rotation — a TUI append can land inside a rewrite. |
+| **C. TUI-owned sidecar file.** | **Shipped.** No second writer on a core-owned file, no protocol surface, `tui`-only so version bumps stay cheap. Costs durability: the records are not part of the session and do not survive `codex resume`. |
 
 This is why the patch is structurally bigger than the `/model` and `/fast` ones:
 those were `tui`-only, this crosses `protocol`, `core`, and `tui`.

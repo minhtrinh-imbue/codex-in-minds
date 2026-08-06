@@ -205,8 +205,20 @@ index 6ca1ba9..c14c1f9 100644
      }
  
      #[test]
+diff --git a/codex-rs/tui/src/chatwidget.rs b/codex-rs/tui/src/chatwidget.rs
+index a3d539e..ff5aa2c 100644
+--- a/codex-rs/tui/src/chatwidget.rs
++++ b/codex-rs/tui/src/chatwidget.rs
+@@ -346,6 +346,7 @@ mod goal_menu;
+ mod ide_context;
+ use self::ide_context::IdeContextState;
+ mod input_queue;
++mod queued_input_log;
+ use self::input_queue::InputQueueState;
+ mod input_flow;
+ mod input_restore;
 diff --git a/codex-rs/tui/src/chatwidget/input_flow.rs b/codex-rs/tui/src/chatwidget/input_flow.rs
-index f26d50a..3bb8bc5 100644
+index f26d50a..539da24 100644
 --- a/codex-rs/tui/src/chatwidget/input_flow.rs
 +++ b/codex-rs/tui/src/chatwidget/input_flow.rs
 @@ -65,6 +65,9 @@ impl ChatWidget {
@@ -219,6 +231,22 @@ index f26d50a..3bb8bc5 100644
              InputResult::CommandWithArgs(cmd, args, text_elements) => {
                  self.handle_slash_command_with_args_dispatch(cmd, args, text_elements);
              }
+@@ -112,6 +115,15 @@ impl ChatWidget {
+             || self.is_user_turn_pending_or_running()
+             || self.input_queue.suppress_queue_autosend
+         {
++            // Record the message the instant it is queued, so a harness watching
++            // this agent can confirm acceptance now rather than when the running
++            // turn eventually ends. See `queued_input_log` for why this is a
++            // sidecar file and not the rollout.
++            crate::chatwidget::queued_input_log::append_queued_input(
++                &self.config.codex_home,
++                self.thread_id.map(|id| id.to_string()).as_deref(),
++                &user_message.text,
++            );
+             self.input_queue
+                 .queued_user_messages
+                 .push_back(QueuedUserMessage {
 diff --git a/codex-rs/tui/src/chatwidget/model_popups.rs b/codex-rs/tui/src/chatwidget/model_popups.rs
 index c8ace98..8dfee68 100644
 --- a/codex-rs/tui/src/chatwidget/model_popups.rs
@@ -327,6 +355,184 @@ index c8ace98..8dfee68 100644
      fn model_menu_header(&self, title: &str, subtitle: &str) -> Box<dyn Renderable> {
          let title = title.to_string();
          let subtitle = subtitle.to_string();
+diff --git a/codex-rs/tui/src/chatwidget/queued_input_log.rs b/codex-rs/tui/src/chatwidget/queued_input_log.rs
+new file mode 100644
+index 0000000..58acf15
+--- /dev/null
++++ b/codex-rs/tui/src/chatwidget/queued_input_log.rs
+@@ -0,0 +1,172 @@
++//! Append-only log of user input queued while a turn is running.
++//!
++//! # Why this exists
++//!
++//! When a user submits while a turn is in flight, codex holds the message in
++//! `InputQueueState::queued_user_messages` -- in memory, and nowhere else. It
++//! reaches the rollout transcript only once the running turn finishes and the
++//! queued message opens a turn of its own. Until then nothing outside the
++//! process can observe that the message was accepted.
++//!
++//! That is a problem for a harness driving codex. Minds renders an optimistic
++//! bubble the instant you send and flips it to "Queued" once the backend
++//! confirms acceptance. For Claude Code that confirmation is a
++//! `queue-operation`/`enqueue` record, written the moment input is queued. codex
++//! has no equivalent, so its confirmation falls back to the `active` marker file
++//! -- and that marker is set by the UserPromptSubmit hook, which by definition
++//! does not fire for a message that was queued rather than started. The
++//! confirmation therefore cannot arrive until the current turn ends, and a
++//! mid-turn send looks indistinguishable from a dropped one.
++//!
++//! # Why a sidecar and not the rollout
++//!
++//! The rollout JSONL is written by core, and the TUI reaches core through the
++//! app-server protocol -- there is no path for it to append a rollout item
++//! without a new protocol request, a processor, and a core handler, across four
++//! crates. A separate file that only the TUI writes needs none of that, and
++//! introduces no second writer to a file core owns (core also rotates and
++//! truncates the rollout, so an outside append is not merely racy).
++//!
++//! The trade-off is that these records are not part of the durable session and
++//! do not survive `codex resume` reconstruction. That is acceptable: the record
++//! exists to answer "was this accepted, right now", and the message itself lands
++//! in the rollout as a normal user turn when it is finally sent.
++//!
++//! # Format
++//!
++//! One JSON object per line, at `$CODEX_HOME/queued_input.jsonl`:
++//!
++//! ```json
++//! {"type":"queued_input","queued_id":"...","thread_id":"...","timestamp":"...","content":"..."}
++//! ```
++//!
++//! `queued_id` is a correlation id. Claude's equivalent records omit one and
++//! rely on matching queued text against the transcript, which is brittle enough
++//! that the Minds frontend carries a FIXME asking for exactly this id: a user
++//! who edits a queued message before it is sent changes the text, and the
++//! optimistic bubble is then stranded until an idle-state backstop clears it.
++
++use std::fs::OpenOptions;
++use std::io::Write;
++use std::path::Path;
++use std::path::PathBuf;
++
++use uuid::Uuid;
++
++pub(super) const QUEUED_INPUT_LOG_FILENAME: &str = "queued_input.jsonl";
++
++pub(super) fn queued_input_log_path(codex_home: &Path) -> PathBuf {
++    codex_home.join(QUEUED_INPUT_LOG_FILENAME)
++}
++
++/// Serialize one `queued_input` record, newline-terminated.
++///
++/// Split out from the write so it can be asserted on without touching a
++/// filesystem.
++pub(super) fn queued_input_record(
++    queued_id: &str,
++    thread_id: Option<&str>,
++    timestamp: &str,
++    content: &str,
++) -> String {
++    let record = serde_json::json!({
++        "type": "queued_input",
++        "queued_id": queued_id,
++        "thread_id": thread_id,
++        "timestamp": timestamp,
++        "content": content,
++    });
++    format!("{record}\n")
++}
++
++/// Append a record for `content`, returning the correlation id.
++///
++/// Best-effort by design: this is observability for an external watcher, so a
++/// failure to write must never interfere with queuing the message the user
++/// actually typed. Errors are traced and swallowed, and the id is returned
++/// either way so callers can keep their own bookkeeping consistent.
++pub(super) fn append_queued_input(
++    codex_home: &Path,
++    thread_id: Option<&str>,
++    content: &str,
++) -> String {
++    let queued_id = Uuid::new_v4().to_string();
++    let timestamp = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
++    let line = queued_input_record(&queued_id, thread_id, &timestamp, content);
++
++    // O_APPEND: writes under the size of a pipe buffer are atomic, so a reader
++    // tailing this file never sees a half-written line even if some other codex
++    // process shares this CODEX_HOME.
++    let write_result = OpenOptions::new()
++        .create(true)
++        .append(true)
++        .open(queued_input_log_path(codex_home))
++        .and_then(|mut file| file.write_all(line.as_bytes()));
++    if let Err(err) = write_result {
++        tracing::warn!("failed to record queued input: {err}");
++    }
++    queued_id
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use std::fs;
++
++    #[test]
++    fn minds_queued_input_record_is_one_json_line() {
++        let line = queued_input_record("qid-1", Some("thread-1"), "2026-01-01T00:00:00.000Z", "hi");
++        assert!(line.ends_with('\n'), "record must be newline-terminated");
++        assert_eq!(line.matches('\n').count(), 1, "record must be a single line");
++
++        let parsed: serde_json::Value =
++            serde_json::from_str(line.trim_end()).expect("record should be valid JSON");
++        assert_eq!(parsed["type"], "queued_input");
++        assert_eq!(parsed["queued_id"], "qid-1");
++        assert_eq!(parsed["thread_id"], "thread-1");
++        assert_eq!(parsed["content"], "hi");
++    }
++
++    /// A newline in the message must not become a second record -- a reader
++    /// tailing this file parses one JSON object per line.
++    #[test]
++    fn minds_queued_input_record_escapes_newlines_in_content() {
++        let line = queued_input_record("qid-1", None, "2026-01-01T00:00:00.000Z", "a\nb");
++        assert_eq!(line.matches('\n').count(), 1);
++
++        let parsed: serde_json::Value = serde_json::from_str(line.trim_end()).expect("valid JSON");
++        assert_eq!(parsed["content"], "a\nb");
++        assert!(parsed["thread_id"].is_null());
++    }
++
++    #[test]
++    fn minds_append_queued_input_appends_rather_than_truncates() {
++        let dir = tempfile::tempdir().expect("tempdir");
++        let first = append_queued_input(dir.path(), Some("t"), "first");
++        let second = append_queued_input(dir.path(), Some("t"), "second");
++        assert_ne!(first, second, "each queued message needs its own id");
++
++        let contents = fs::read_to_string(queued_input_log_path(dir.path())).expect("log written");
++        let lines: Vec<&str> = contents.lines().collect();
++        assert_eq!(lines.len(), 2, "second write must not truncate the first");
++        let parsed: Vec<serde_json::Value> = lines
++            .iter()
++            .map(|line| serde_json::from_str(line).expect("valid JSON"))
++            .collect();
++        assert_eq!(parsed[0]["content"], "first");
++        assert_eq!(parsed[1]["content"], "second");
++        assert_eq!(parsed[0]["queued_id"], first);
++        assert_eq!(parsed[1]["queued_id"], second);
++    }
++
++    /// The user's message must still be queued when the log cannot be written,
++    /// so the write failure has to stay non-fatal.
++    #[test]
++    fn minds_append_queued_input_survives_an_unwritable_directory() {
++        let dir = tempfile::tempdir().expect("tempdir");
++        let missing = dir.path().join("does-not-exist");
++        let queued_id = append_queued_input(&missing, None, "still returns an id");
++        assert!(!queued_id.is_empty());
++        assert!(!queued_input_log_path(&missing).exists());
++    }
++}
 diff --git a/codex-rs/tui/src/chatwidget/service_tiers.rs b/codex-rs/tui/src/chatwidget/service_tiers.rs
 index 7338673..86a47a8 100644
 --- a/codex-rs/tui/src/chatwidget/service_tiers.rs
