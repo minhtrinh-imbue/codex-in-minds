@@ -65,9 +65,15 @@ the popup and typed dispatch share a single choke point.
 
 **4. Queued input is recorded the instant it is queued.**
 
-Submit while a turn is running and codex holds the message in memory only. It
-reaches the transcript when the running turn finally ends, so until then nothing
-outside the process can tell an accepted message from a dropped one. Minds shows
+Submit while a turn is running and the message becomes a **steer**: codex hands
+it to core and lists it under *"Messages to be submitted after next tool call"*.
+Core holds it in memory and writes nothing to the rollout until it injects the
+message at the next tool-call boundary, so until then nothing outside the process
+can tell an accepted message from a dropped one.
+
+(This is `pending_steers`. Despite the name, `queued_user_messages` is *not* the
+mid-turn queue -- it is the "the TUI cannot submit at all" buffer: session still
+booting, a plan streaming, a `!shell` command running, or a settings modal open.) Minds shows
 an optimistic bubble on send and flips it to "Queued" once the backend confirms
 acceptance -- but codex's confirmation comes from the `active` marker, set by the
 UserPromptSubmit hook, which by definition does not fire for a message that was
@@ -261,7 +267,7 @@ because they live inside the function being called.
 ## Verification
 
 Every build runs `cargo test -p codex-tui --lib minds_` and refuses to produce a
-binary if it fails. Thirteen tests, all added by the patch:
+binary if it fails. Fifteen tests, all added by the patch:
 
 | test | guards |
 |---|---|
@@ -278,6 +284,8 @@ binary if it fails. Thirteen tests, all added by the patch:
 | `minds_queued_input_record_escapes_newlines_in_content` | a newline in the message cannot forge a second record |
 | `minds_append_queued_input_appends_rather_than_truncates` | a second queued message does not clobber the first, and ids are distinct |
 | `minds_append_queued_input_survives_an_unwritable_directory` | a failed write never stops the message being queued |
+| `minds_slash_fast_with_args_clears_the_composer` | `/fast on` does not stay in the input after it is applied |
+| `minds_queued_slash_fast_preserves_an_unrelated_composer_draft` | draining a queued `/fast on` does not destroy a draft typed since |
 
 ### Known-red upstream tests
 

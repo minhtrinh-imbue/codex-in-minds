@@ -218,40 +218,50 @@ index a3d539e..ff5aa2c 100644
  mod input_flow;
  mod input_restore;
 diff --git a/codex-rs/tui/src/chatwidget/input_flow.rs b/codex-rs/tui/src/chatwidget/input_flow.rs
-index f26d50a..539da24 100644
+index f26d50a..f03a611 100644
 --- a/codex-rs/tui/src/chatwidget/input_flow.rs
 +++ b/codex-rs/tui/src/chatwidget/input_flow.rs
-@@ -65,6 +65,9 @@ impl ChatWidget {
+@@ -65,6 +65,13 @@ impl ChatWidget {
              InputResult::ServiceTierCommand(command) => {
                  self.handle_service_tier_command_dispatch(command);
              }
 +            InputResult::ServiceTierCommandWithArgs(command, args) => {
-+                self.handle_service_tier_command_with_args_dispatch(command, args);
++                self.handle_service_tier_command_with_args_dispatch(
++                    command,
++                    args,
++                    /*clear_composer*/ true,
++                );
 +            }
              InputResult::CommandWithArgs(cmd, args, text_elements) => {
                  self.handle_slash_command_with_args_dispatch(cmd, args, text_elements);
              }
-@@ -112,6 +115,15 @@ impl ChatWidget {
-             || self.is_user_turn_pending_or_running()
-             || self.input_queue.suppress_queue_autosend
-         {
-+            // Record the message the instant it is queued, so a harness watching
-+            // this agent can confirm acceptance now rather than when the running
-+            // turn eventually ends. See `queued_input_log` for why this is a
-+            // sidecar file and not the rollout.
+diff --git a/codex-rs/tui/src/chatwidget/input_submission.rs b/codex-rs/tui/src/chatwidget/input_submission.rs
+index 830cd3e..e627309 100644
+--- a/codex-rs/tui/src/chatwidget/input_submission.rs
++++ b/codex-rs/tui/src/chatwidget/input_submission.rs
+@@ -405,6 +405,17 @@ impl ChatWidget {
+         }
+ 
+         if let Some(pending_steer) = pending_steer {
++            // Record the steer the moment it is accepted. It has already gone to
++            // core but will not reach the rollout until core injects it at the
++            // next tool-call boundary, so until then nothing outside this process
++            // can tell an accepted message from a dropped one. This is the queue
++            // codex surfaces as "Messages to be submitted after next tool call".
++            // See `queued_input_log` for why it is a sidecar and not the rollout.
 +            crate::chatwidget::queued_input_log::append_queued_input(
 +                &self.config.codex_home,
 +                self.thread_id.map(|id| id.to_string()).as_deref(),
-+                &user_message.text,
++                &pending_steer.user_message.text,
 +            );
-             self.input_queue
-                 .queued_user_messages
-                 .push_back(QueuedUserMessage {
+             self.input_queue.pending_steers.push_back(pending_steer);
+             self.transcript.saw_plan_item_this_turn = false;
+             self.refresh_pending_input_preview();
 diff --git a/codex-rs/tui/src/chatwidget/model_popups.rs b/codex-rs/tui/src/chatwidget/model_popups.rs
-index c8ace98..8dfee68 100644
+index c8ace98..7905377 100644
 --- a/codex-rs/tui/src/chatwidget/model_popups.rs
 +++ b/codex-rs/tui/src/chatwidget/model_popups.rs
-@@ -32,6 +32,103 @@ impl ChatWidget {
+@@ -32,6 +32,107 @@ impl ChatWidget {
          self.open_model_popup_with_presets(presets);
      }
  
@@ -349,6 +359,10 @@ index c8ace98..8dfee68 100644
 +        for action in actions {
 +            action(&self.app_event_tx);
 +        }
++        // Not redundant on this path: `model_selection_actions` emits
++        // `OpenPlanReasoningScopePrompt` when the plan-mode-scope branch applies,
++        // so a popup can still be on screen here and queued input must not
++        // autosend behind it. A guarded no-op when no popup opened.
 +        self.defer_input_until_settings_applied();
 +    }
 +
@@ -357,19 +371,27 @@ index c8ace98..8dfee68 100644
          let subtitle = subtitle.to_string();
 diff --git a/codex-rs/tui/src/chatwidget/queued_input_log.rs b/codex-rs/tui/src/chatwidget/queued_input_log.rs
 new file mode 100644
-index 0000000..58acf15
+index 0000000..7d77405
 --- /dev/null
 +++ b/codex-rs/tui/src/chatwidget/queued_input_log.rs
-@@ -0,0 +1,172 @@
+@@ -0,0 +1,180 @@
 +//! Append-only log of user input queued while a turn is running.
 +//!
 +//! # Why this exists
 +//!
-+//! When a user submits while a turn is in flight, codex holds the message in
-+//! `InputQueueState::queued_user_messages` -- in memory, and nowhere else. It
-+//! reaches the rollout transcript only once the running turn finishes and the
-+//! queued message opens a turn of its own. Until then nothing outside the
-+//! process can observe that the message was accepted.
++//! When a user submits while a turn is in flight, the message becomes a
++//! *steer*: `submit_user_message` hands it to core and parks a `PendingSteer` in
++//! `InputQueueState::pending_steers`. codex shows these under "Messages to be
++//! submitted after next tool call". Core holds it in its own in-memory pending
++//! input (`extend_pending_input_and_accept_mailbox_delivery_for_turn_state`)
++//! and writes nothing to the rollout until it injects the message at the next
++//! tool-call boundary. Until then nothing outside the process can observe that
++//! the message was accepted.
++//!
++//! Note this is `pending_steers`, not `queued_user_messages`. Despite the name,
++//! the latter is not the mid-turn queue -- it is the "TUI cannot submit at all"
++//! buffer (session still booting, a plan streaming, a `!shell` command running,
++//! or a settings modal open) and is drained only once no turn is running.
 +//!
 +//! That is a problem for a harness driving codex. Minds renders an optimistic
 +//! bubble the instant you send and flips it to "Queued" once the backend
@@ -416,9 +438,9 @@ index 0000000..58acf15
 +
 +use uuid::Uuid;
 +
-+pub(super) const QUEUED_INPUT_LOG_FILENAME: &str = "queued_input.jsonl";
++const QUEUED_INPUT_LOG_FILENAME: &str = "queued_input.jsonl";
 +
-+pub(super) fn queued_input_log_path(codex_home: &Path) -> PathBuf {
++fn queued_input_log_path(codex_home: &Path) -> PathBuf {
 +    codex_home.join(QUEUED_INPUT_LOG_FILENAME)
 +}
 +
@@ -426,7 +448,7 @@ index 0000000..58acf15
 +///
 +/// Split out from the write so it can be asserted on without touching a
 +/// filesystem.
-+pub(super) fn queued_input_record(
++fn queued_input_record(
 +    queued_id: &str,
 +    thread_id: Option<&str>,
 +    timestamp: &str,
@@ -565,10 +587,10 @@ index 7338673..86a47a8 100644
          self.bottom_pane
              .set_service_tier_commands_enabled(self.fast_mode_enabled());
 diff --git a/codex-rs/tui/src/chatwidget/slash_dispatch.rs b/codex-rs/tui/src/chatwidget/slash_dispatch.rs
-index e28cfd7..7770955 100644
+index e28cfd7..3840b34 100644
 --- a/codex-rs/tui/src/chatwidget/slash_dispatch.rs
 +++ b/codex-rs/tui/src/chatwidget/slash_dispatch.rs
-@@ -66,6 +66,29 @@ impl ChatWidget {
+@@ -66,6 +66,57 @@ impl ChatWidget {
          self.bottom_pane.record_pending_slash_command_history();
      }
  
@@ -576,29 +598,57 @@ index e28cfd7..7770955 100644
 +    ///
 +    /// Same side-conversation guard as the bare form above, checked before the
 +    /// argument so an unavailable command reports that rather than an arg error.
++    /// `clear_composer` distinguishes the two callers. Typed live, the composer
++    /// still holds the `/fast on` that produced `args`, so it must be consumed.
++    /// Drained from the queued-input path, `args` came from stored text and the
++    /// composer may hold an unrelated draft typed since -- clearing there would
++    /// destroy the user's in-progress message.
 +    pub(super) fn handle_service_tier_command_with_args_dispatch(
 +        &mut self,
 +        command: ServiceTierCommand,
 +        args: String,
++        clear_composer: bool,
 +    ) {
 +        if self.active_side_conversation {
 +            self.add_error_message(format!(
 +                "'/{}' is unavailable in side conversations. {SIDE_SLASH_COMMAND_UNAVAILABLE_HINT}",
 +                command.name
 +            ));
-+            self.bottom_pane.drain_pending_submission_state();
++            if clear_composer {
++                self.clear_service_tier_submission();
++            }
 +            self.bottom_pane.record_pending_slash_command_history();
 +            return;
 +        }
 +        self.set_service_tier_from_args(command, &args);
-+        self.bottom_pane.drain_pending_submission_state();
++        if clear_composer {
++            self.clear_service_tier_submission();
++        }
 +        self.bottom_pane.record_pending_slash_command_history();
++    }
++
++    /// Consume the composer draft after a service-tier command with inline args.
++    ///
++    /// Inline-arg builtins get this for free: `dispatch_command_with_args` runs
++    /// the args through `prepare_live_inline_args`, which consumes the draft --
++    /// that is why `/model gpt-5.4 high` clears the input. Service tiers reach
++    /// their handler straight from the composer and never touch that path, so
++    /// without this `/fast on` stays in the input after it has been applied.
++    /// `drain_pending_submission_state` alone is not enough: it clears pending
++    /// attachments and mention bindings, not text. Same shape as
++    /// `clear_live_goal_submission`, the existing pattern for a slash command
++    /// that acts without submitting text.
++    fn clear_service_tier_submission(&mut self) {
++        self.bottom_pane
++            .set_composer_text(String::new(), Vec::new(), Vec::new());
++        self.bottom_pane.set_composer_pending_pastes(Vec::new());
++        self.bottom_pane.drain_pending_submission_state();
 +    }
 +
      /// Dispatch an inline slash command and record its staged local-history entry.
      ///
      /// Inline command arguments may later be prepared through the normal submission pipeline, but
-@@ -684,6 +707,9 @@ impl ChatWidget {
+@@ -684,6 +735,9 @@ impl ChatWidget {
              SlashCommand::Ide => {
                  self.handle_ide_command_args(trimmed);
              }
@@ -608,7 +658,7 @@ index e28cfd7..7770955 100644
              SlashCommand::Mcp => match trimmed.to_ascii_lowercase().as_str() {
                  "verbose" => self.add_mcp_output(McpServerStatusDetail::Full),
                  _ => self.add_error_message("Usage: /mcp [verbose]".to_string()),
-@@ -986,15 +1012,18 @@ impl ChatWidget {
+@@ -986,15 +1040,19 @@ impl ChatWidget {
              });
              return QueueDrain::Stop;
          }
@@ -630,6 +680,7 @@ index e28cfd7..7770955 100644
 +                self.handle_service_tier_command_with_args_dispatch(
 +                    command,
 +                    rest.trim().to_string(),
++                    /*clear_composer*/ false,
 +                );
 +                return QueueDrain::Continue;
 +            }
@@ -637,10 +688,10 @@ index e28cfd7..7770955 100644
  
          let trimmed_start = rest.trim_start();
 diff --git a/codex-rs/tui/src/chatwidget/tests/slash_commands.rs b/codex-rs/tui/src/chatwidget/tests/slash_commands.rs
-index 47d597d..837b435 100644
+index 47d597d..0664eb8 100644
 --- a/codex-rs/tui/src/chatwidget/tests/slash_commands.rs
 +++ b/codex-rs/tui/src/chatwidget/tests/slash_commands.rs
-@@ -2933,3 +2933,141 @@ async fn compact_queues_user_messages_snapshot() {
+@@ -2933,3 +2933,188 @@ async fn compact_queues_user_messages_snapshot() {
          normalize_snapshot_paths(term.backend().vt100().screen().contents())
      );
  }
@@ -780,6 +831,53 @@ index 47d597d..837b435 100644
 +    assert!(
 +        persisted_service_tiers(&mut rx).is_empty(),
 +        "an unrecognized argument must not change the service tier"
++    );
++}
++
++/// Regression: `/fast on` applied the tier but left the typed text sitting in the
++/// composer. Inline-arg builtins are consumed by `prepare_live_inline_args`
++/// before their handler runs; service tiers never touch that path.
++#[tokio::test]
++async fn minds_slash_fast_with_args_clears_the_composer() {
++    let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(Some("gpt-5.4")).await;
++    chat.thread_id = Some(ThreadId::new());
++    let _ = drain_insert_history(&mut rx);
++    chat.bottom_pane
++        .set_composer_text("/fast on".to_string(), Vec::new(), Vec::new());
++    assert!(!chat.bottom_pane.composer_text().is_empty(), "test setup");
++
++    chat.handle_service_tier_command_with_args_dispatch(
++        fast_tier_command(),
++        "on".to_string(),
++        /*clear_composer*/ true,
++    );
++
++    assert!(
++        chat.bottom_pane.composer_text().is_empty(),
++        "'/fast on' must not stay in the composer after it is applied"
++    );
++}
++
++/// The queued-input drain shares the service-tier handler but did not build its
++/// args from the composer, so a draft typed since must survive.
++#[tokio::test]
++async fn minds_queued_slash_fast_preserves_an_unrelated_composer_draft() {
++    let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(Some("gpt-5.4")).await;
++    chat.thread_id = Some(ThreadId::new());
++    let _ = drain_insert_history(&mut rx);
++    chat.bottom_pane
++        .set_composer_text("a draft I am still typing".to_string(), Vec::new(), Vec::new());
++
++    chat.handle_service_tier_command_with_args_dispatch(
++        fast_tier_command(),
++        "on".to_string(),
++        /*clear_composer*/ false,
++    );
++
++    assert_eq!(
++        chat.bottom_pane.composer_text(),
++        "a draft I am still typing",
++        "draining a queued '/fast on' must not destroy the live draft"
 +    );
 +}
 diff --git a/codex-rs/tui/src/slash_command.rs b/codex-rs/tui/src/slash_command.rs
