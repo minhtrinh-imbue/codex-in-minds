@@ -71,7 +71,7 @@ Design notes and the source-level reasoning are in **[docs/spec.md](docs/spec.md
 
 ```sh
 git clone https://github.com/minhtrinh-imbue/codex-in-minds
-cd codex-slash-model
+cd codex-in-minds
 ./build.sh --version 0.146.0
 ```
 
@@ -113,10 +113,10 @@ terminate command when it does. Two `c7*.4xlarge` are about $1.30/hour.
 ## 2. Cut a release
 
 ```sh
-gh release create v0.146.0-minds.1 \
+gh release create v0.146.0 \
   codex-linux-arm64 codex-linux-amd64 SHA256SUMS \
-  --title "codex 0.146.0 + /model args" \
-  --notes "Patched codex 0.146.0 with inline /model <model> [effort]."
+  --title "codex 0.146.0 for Minds" \
+  --notes "Patched codex 0.146.0: inline /model and /fast args, session-reshaping commands withheld."
 ```
 
 > **This repo must stay public.** A workspace build `curl`s the release asset
@@ -133,7 +133,7 @@ branch.
 
 ```sh
 : "${CODEX_VERSION:=0.146.0}"
-: "${CODEX_PATCH_RELEASE:=v0.146.0-minds.1}"
+: "${CODEX_PATCH_RELEASE:=v0.146.0}"
 ```
 
 **Edit 2** — paste this immediately after the existing codex install
@@ -148,8 +148,8 @@ branch.
 # it embeds V8 and is left alone, which is what keeps this patch cheap to carry.
 codex_patch_arch="$(dpkg --print-architecture)"
 case "${codex_patch_arch}" in
-    arm64) codex_patch_sha256="beb197c0c4f11e9a91f5bd83abeb42cb4159f23d06909ec4b0b057cf8187c084" ;;
-    amd64) codex_patch_sha256="0b60ea44d0ede489293b4c1b00684a6774c1185eb7c90dd607e1d5fc3209d7f6" ;;
+    arm64) codex_patch_sha256="eb86b9a31b2301800d341a27b0de1d5a04ddd5f17f4c8642bcd88c3d7a374ab7" ;;
+    amd64) codex_patch_sha256="7f5140e29f7e857475bf793a82f4531486e7bfe396eecfc624641d05bb972c24" ;;
     *) echo "Unsupported architecture for patched codex: ${codex_patch_arch}" >&2; exit 1 ;;
 esac
 # npm nests the platform subpackage, and the exact path differs between npm
@@ -170,7 +170,7 @@ mv -f "${codex_patch_tmp}" "${codex_vendored}"
 codex --version
 ```
 
-The two sums above are the ones in the `v0.146.0-minds.1` release. If you cut a
+The two sums above are the ones in the `v0.146.0` release. If you cut a
 new release, replace them with the values from that build's `SHA256SUMS` — the
 binaries are not byte-reproducible across builds.
 

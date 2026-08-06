@@ -282,7 +282,7 @@ one filter catches both, or change the command to run the whole
   not a patch set. Rename to something like `codex-minds-patches` before this
   lands and gets referenced from dwt — cheap now, annoying later. `gh repo
   rename` keeps redirects working, but the dwt URL should be updated anyway.
-- **Release tag** moves from `v0.146.0-minds.1` to something version-scoped
+- **Release tag** moves from `v0.146.0` to something version-scoped
   rather than feature-scoped, e.g. `v0.146.0-minds.2`, since the contents will
   keep growing.
 - Blast radius stays small: still `tui` only, still no V8, so build time and
