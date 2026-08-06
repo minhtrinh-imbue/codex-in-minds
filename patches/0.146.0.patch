@@ -1,0 +1,590 @@
+diff --git a/codex-rs/tui/src/bottom_pane/chat_composer.rs b/codex-rs/tui/src/bottom_pane/chat_composer.rs
+index 7ca6bb0..9402e68 100644
+--- a/codex-rs/tui/src/bottom_pane/chat_composer.rs
++++ b/codex-rs/tui/src/bottom_pane/chat_composer.rs
+@@ -341,6 +341,11 @@ pub enum InputResult {
+     Command(SlashCommand),
+     /// A bare model service-tier command parsed by the composer.
+     ServiceTierCommand(ServiceTierCommand),
++    /// A model service-tier command and its trimmed argument text (`/fast on`).
++    ///
++    /// No `TextElement`s: the arguments are `on`/`off`, so there are no file
++    /// mentions or pending pastes whose ranges would need rebasing.
++    ServiceTierCommandWithArgs(ServiceTierCommand, String),
+     /// An inline slash command and its trimmed argument text.
+     ///
+     /// The `TextElement` ranges are rebased into the argument string, while any pending local
+@@ -2961,6 +2966,7 @@ impl ChatComposer {
+                 | InputResult::Queued { .. }
+                 | InputResult::Command(_)
+                 | InputResult::ServiceTierCommand(_)
++                | InputResult::ServiceTierCommandWithArgs(_, _)
+                 | InputResult::CommandWithArgs(_, _, _)
+         ) {
+             self.draft.textarea.enter_vim_normal_mode();
+@@ -3170,8 +3176,14 @@ impl ChatComposer {
+         );
+         let trimmed_rest = inline_command.rest.trim();
+         args_elements = Self::trim_text_elements(inline_command.rest, trimmed_rest, args_elements);
+-        let SlashCommandItem::Builtin(cmd) = command else {
+-            return None;
++        let cmd = match command {
++            SlashCommandItem::Builtin(cmd) => cmd,
++            SlashCommandItem::ServiceTier(command) => {
++                return Some(InputResult::ServiceTierCommandWithArgs(
++                    command,
++                    trimmed_rest.to_string(),
++                ));
++            }
+         };
+         Some(InputResult::CommandWithArgs(
+             cmd,
+@@ -9343,7 +9355,8 @@ mod tests {
+             InputResult::CommandWithArgs(_, _, _) => {
+                 panic!("expected command dispatch without args for '/init'")
+             }
+-            InputResult::ServiceTierCommand(command) => {
++            InputResult::ServiceTierCommand(command)
++            | InputResult::ServiceTierCommandWithArgs(command, _) => {
+                 panic!("expected init command, got service tier {command:?}")
+             }
+             InputResult::Submitted { text, .. } => {
+@@ -9853,7 +9866,8 @@ mod tests {
+             InputResult::CommandWithArgs(_, _, _) => {
+                 panic!("expected command dispatch without args for '/diff'")
+             }
+-            InputResult::ServiceTierCommand(command) => {
++            InputResult::ServiceTierCommand(command)
++            | InputResult::ServiceTierCommandWithArgs(command, _) => {
+                 panic!("expected diff command, got service tier {command:?}")
+             }
+             InputResult::Submitted { text, .. } => {
+@@ -10053,7 +10067,8 @@ mod tests {
+             InputResult::CommandWithArgs(_, _, _) => {
+                 panic!("expected command dispatch without args for '/mention'")
+             }
+-            InputResult::ServiceTierCommand(command) => {
++            InputResult::ServiceTierCommand(command)
++            | InputResult::ServiceTierCommandWithArgs(command, _) => {
+                 panic!("expected mention command, got service tier {command:?}")
+             }
+             InputResult::Submitted { text, .. } => {
+diff --git a/codex-rs/tui/src/bottom_pane/chat_composer/slash_input.rs b/codex-rs/tui/src/bottom_pane/chat_composer/slash_input.rs
+index d8a6201..87db5f6 100644
+--- a/codex-rs/tui/src/bottom_pane/chat_composer/slash_input.rs
++++ b/codex-rs/tui/src/bottom_pane/chat_composer/slash_input.rs
+@@ -641,14 +641,17 @@ mod tests {
+ 
+     #[test]
+     fn slash_completion_does_not_preserve_existing_draft_tail_for_other_commands() {
++        // Was "/mo" -> "/model". `/model` now takes inline args, so preserving
++        // the tail is the correct behaviour for it, same as `/review`. `/diff`
++        // still takes none, which is what this test is actually about.
+         let mut composer = composer_with_draft_tail(
+-            "/mo",
++            "/dif",
+             "preserve this draft only for opted-in slash commands",
+         );
+ 
+         assert_eq!(press(&mut composer, KeyCode::Tab), InputResult::None);
+-        assert_eq!(composer.draft.textarea.text(), "/model ");
+-        assert_eq!(composer.draft.textarea.cursor(), "/model ".len());
++        assert_eq!(composer.draft.textarea.text(), "/diff ");
++        assert_eq!(composer.draft.textarea.cursor(), "/diff ".len());
+     }
+ 
+     #[test]
+diff --git a/codex-rs/tui/src/bottom_pane/slash_commands.rs b/codex-rs/tui/src/bottom_pane/slash_commands.rs
+index 6ca1ba9..c14c1f9 100644
+--- a/codex-rs/tui/src/bottom_pane/slash_commands.rs
++++ b/codex-rs/tui/src/bottom_pane/slash_commands.rs
+@@ -34,7 +34,9 @@ impl SlashCommandItem {
+     pub(crate) fn supports_inline_args(&self) -> bool {
+         match self {
+             Self::Builtin(cmd) => cmd.supports_inline_args(),
+-            Self::ServiceTier(_) => false,
++            // `/fast on` and `/fast off`. Without this the args fall through to
++            // the model as chat, which reads as success but changes nothing.
++            Self::ServiceTier(_) => true,
+         }
+     }
+ 
+@@ -66,10 +68,42 @@ pub(crate) struct BuiltinCommandFlags {
+     pub(crate) side_conversation_active: bool,
+ }
+ 
++/// Commands withheld when codex runs inside Minds.
++///
++/// Each one either starts, switches, or destroys a thread, or changes how the
++/// composer interprets input. Minds follows a session by reading its transcript,
++/// so a command that swaps the thread out from under it leaves that view
++/// describing a conversation the user is no longer in. Aliases are listed
++/// alongside their primary (`quit`/`exit`, `btw`/`side`, `subagents`/`agent`)
++/// because each is a distinct variant and blocking only one leaves the other
++/// reachable.
++///
++/// This is a predictability measure, not a containment boundary: Ctrl-C and
++/// Ctrl-D still exit the TUI.
++const MINDS_BLOCKED_COMMANDS: &[SlashCommand] = &[
++    SlashCommand::New,
++    SlashCommand::Clear,
++    SlashCommand::Fork,
++    SlashCommand::Archive,
++    SlashCommand::Delete,
++    SlashCommand::Resume,
++    SlashCommand::Side,
++    SlashCommand::Btw,
++    SlashCommand::Agent,
++    SlashCommand::MultiAgents,
++    SlashCommand::Exit,
++    SlashCommand::Quit,
++    SlashCommand::Keymap,
++    SlashCommand::Vim,
++    SlashCommand::Experimental,
++    SlashCommand::Plan,
++];
++
+ /// Return the built-ins that should be visible/usable for the current input.
+ pub(crate) fn builtins_for_input(flags: BuiltinCommandFlags) -> Vec<(&'static str, SlashCommand)> {
+     built_in_slash_commands()
+         .into_iter()
++        .filter(|(_, cmd)| !MINDS_BLOCKED_COMMANDS.contains(cmd))
+         .filter(|(_, cmd)| flags.allow_elevate_sandbox || *cmd != SlashCommand::ElevateSandbox)
+         .filter(|(_, cmd)| flags.collaboration_modes_enabled || *cmd != SlashCommand::Plan)
+         .filter(|(_, cmd)| flags.connectors_enabled || *cmd != SlashCommand::Apps)
+@@ -182,12 +216,48 @@ mod tests {
+         assert_eq!(cmd, Some(SlashCommand::DebugConfig));
+     }
+ 
++    /// Upstream asserts `/clear` resolves. Minds blocks it, so the expectation
++    /// is inverted here rather than the test deleted -- if the block is ever
++    /// lifted this fails loudly instead of silently going unchecked.
+     #[test]
+     fn clear_command_resolves_for_dispatch() {
+-        assert_eq!(
+-            find_builtin_command("clear", all_enabled_flags()),
+-            Some(SlashCommand::Clear)
+-        );
++        assert_eq!(find_builtin_command("clear", all_enabled_flags()), None);
++    }
++
++    #[test]
++    fn minds_blocked_commands_do_not_resolve() {
++        for cmd in MINDS_BLOCKED_COMMANDS {
++            assert_eq!(
++                find_builtin_command(cmd.command(), all_enabled_flags()),
++                None,
++                "/{} should be blocked in Minds",
++                cmd.command()
++            );
++        }
++    }
++
++    /// Without this, a filter bug that hides every command passes the test above.
++    #[test]
++    fn minds_allowed_commands_still_resolve() {
++        for name in ["model", "status", "diff", "compact", "review"] {
++            assert!(
++                find_builtin_command(name, all_enabled_flags()).is_some(),
++                "/{name} should still be available"
++            );
++        }
++    }
++
++    /// The aliases are separate enum variants; blocking only the primary would
++    /// leave these reachable and the lockdown cosmetic.
++    #[test]
++    fn minds_blocked_command_aliases_do_not_resolve() {
++        for name in ["quit", "exit", "btw", "side", "subagents", "agent", "new"] {
++            assert_eq!(
++                find_builtin_command(name, all_enabled_flags()),
++                None,
++                "/{name} should be blocked in Minds"
++            );
++        }
+     }
+ 
+     #[test]
+diff --git a/codex-rs/tui/src/chatwidget/input_flow.rs b/codex-rs/tui/src/chatwidget/input_flow.rs
+index f26d50a..3bb8bc5 100644
+--- a/codex-rs/tui/src/chatwidget/input_flow.rs
++++ b/codex-rs/tui/src/chatwidget/input_flow.rs
+@@ -65,6 +65,9 @@ impl ChatWidget {
+             InputResult::ServiceTierCommand(command) => {
+                 self.handle_service_tier_command_dispatch(command);
+             }
++            InputResult::ServiceTierCommandWithArgs(command, args) => {
++                self.handle_service_tier_command_with_args_dispatch(command, args);
++            }
+             InputResult::CommandWithArgs(cmd, args, text_elements) => {
+                 self.handle_slash_command_with_args_dispatch(cmd, args, text_elements);
+             }
+diff --git a/codex-rs/tui/src/chatwidget/model_popups.rs b/codex-rs/tui/src/chatwidget/model_popups.rs
+index c8ace98..8dfee68 100644
+--- a/codex-rs/tui/src/chatwidget/model_popups.rs
++++ b/codex-rs/tui/src/chatwidget/model_popups.rs
+@@ -32,6 +32,103 @@ impl ChatWidget {
+         self.open_model_popup_with_presets(presets);
+     }
+ 
++    /// Apply `/model <model> [effort]` without opening the picker.
++    ///
++    /// Resolves the preset from the same catalog the popup uses, then runs the
++    /// exact `SelectionAction` the popup would have run on Enter, so the effect
++    /// is identical to choosing the pair by hand (including the Ultra and
++    /// plan-mode-scope branches).
++    pub(crate) fn apply_model_selection_from_args(&mut self, args: &str) {
++        if !self.is_session_configured() {
++            self.add_info_message(
++                "Model selection is disabled until startup completes.".to_string(),
++                /*hint*/ None,
++            );
++            return;
++        }
++
++        let mut parts = args.split_whitespace();
++        let Some(model_arg) = parts.next() else {
++            self.open_model_popup();
++            self.defer_input_until_settings_applied();
++            return;
++        };
++        let effort_arg = parts.next();
++        if parts.next().is_some() {
++            self.add_error_message("Usage: /model [model] [effort]".to_string());
++            return;
++        }
++
++        let presets: Vec<ModelPreset> = match self.model_catalog.try_list_models() {
++            Ok(models) => models,
++            Err(_) => {
++                self.add_info_message(
++                    "Models are being updated; please try /model again in a moment.".to_string(),
++                    /*hint*/ None,
++                );
++                return;
++            }
++        };
++
++        let Some(preset) = presets
++            .iter()
++            .find(|preset| preset.model.eq_ignore_ascii_case(model_arg))
++            .cloned()
++        else {
++            let mut known: Vec<String> = presets
++                .iter()
++                .filter(|preset| preset.show_in_picker)
++                .map(|preset| preset.model.clone())
++                .collect();
++            known.sort();
++            known.dedup();
++            self.add_error_message(format!(
++                "Unknown model '{model_arg}'. Available: {}",
++                known.join(", ")
++            ));
++            return;
++        };
++
++        let effort = match effort_arg {
++            None => preset.default_reasoning_effort.clone(),
++            Some(raw) => {
++                // `FromStr` maps any unrecognized string to `Custom`, so the
++                // supported-efforts check below is what actually rejects a typo.
++                let parsed = raw
++                    .to_ascii_lowercase()
++                    .parse::<ReasoningEffortConfig>()
++                    .unwrap_or_else(|_| ReasoningEffortConfig::Custom(raw.to_string()));
++                if !preset
++                    .supported_reasoning_efforts
++                    .iter()
++                    .any(|option| option.effort == parsed)
++                {
++                    let supported: Vec<String> = preset
++                        .supported_reasoning_efforts
++                        .iter()
++                        .map(|option| option.effort.as_str().to_string())
++                        .collect();
++                    self.add_error_message(format!(
++                        "'{}' does not support reasoning effort '{raw}'. Supported: {}",
++                        preset.model,
++                        supported.join(", ")
++                    ));
++                    return;
++                }
++                parsed
++            }
++        };
++
++        let should_prompt_plan_mode_scope =
++            self.should_prompt_plan_mode_reasoning_scope(preset.model.as_str(), Some(effort.clone()));
++        let actions =
++            self.model_selection_actions(preset.model.clone(), Some(effort), should_prompt_plan_mode_scope);
++        for action in actions {
++            action(&self.app_event_tx);
++        }
++        self.defer_input_until_settings_applied();
++    }
++
+     fn model_menu_header(&self, title: &str, subtitle: &str) -> Box<dyn Renderable> {
+         let title = title.to_string();
+         let subtitle = subtitle.to_string();
+diff --git a/codex-rs/tui/src/chatwidget/service_tiers.rs b/codex-rs/tui/src/chatwidget/service_tiers.rs
+index 7338673..86a47a8 100644
+--- a/codex-rs/tui/src/chatwidget/service_tiers.rs
++++ b/codex-rs/tui/src/chatwidget/service_tiers.rs
+@@ -72,6 +72,26 @@ impl ChatWidget {
+         self.set_service_tier_selection(next_tier);
+     }
+ 
++    /// Apply an explicit `on`/`off` instead of flipping whatever is current.
++    ///
++    /// Ends at `set_service_tier_selection`, the same private apply path the
++    /// toggle uses, so the config write, `override_turn_context`, and
++    /// persistence stay in one place rather than being reproduced here.
++    pub(crate) fn set_service_tier_from_args(&mut self, command: ServiceTierCommand, args: &str) {
++        let next_tier = match args.trim().to_ascii_lowercase().as_str() {
++            "on" => Some(command.id),
++            "off" => Some(SERVICE_TIER_DEFAULT_REQUEST_VALUE.to_string()),
++            other => {
++                let name = &command.name;
++                self.add_error_message(format!(
++                    "'/{name} {other}' is not valid. Use '/{name} on' or '/{name} off', or '/{name}' on its own to toggle."
++                ));
++                return;
++            }
++        };
++        self.set_service_tier_selection(next_tier);
++    }
++
+     pub(super) fn sync_service_tier_commands(&mut self) {
+         self.bottom_pane
+             .set_service_tier_commands_enabled(self.fast_mode_enabled());
+diff --git a/codex-rs/tui/src/chatwidget/slash_dispatch.rs b/codex-rs/tui/src/chatwidget/slash_dispatch.rs
+index e28cfd7..7770955 100644
+--- a/codex-rs/tui/src/chatwidget/slash_dispatch.rs
++++ b/codex-rs/tui/src/chatwidget/slash_dispatch.rs
+@@ -66,6 +66,29 @@ impl ChatWidget {
+         self.bottom_pane.record_pending_slash_command_history();
+     }
+ 
++    /// `/fast on` and `/fast off`: set the tier explicitly instead of toggling.
++    ///
++    /// Same side-conversation guard as the bare form above, checked before the
++    /// argument so an unavailable command reports that rather than an arg error.
++    pub(super) fn handle_service_tier_command_with_args_dispatch(
++        &mut self,
++        command: ServiceTierCommand,
++        args: String,
++    ) {
++        if self.active_side_conversation {
++            self.add_error_message(format!(
++                "'/{}' is unavailable in side conversations. {SIDE_SLASH_COMMAND_UNAVAILABLE_HINT}",
++                command.name
++            ));
++            self.bottom_pane.drain_pending_submission_state();
++            self.bottom_pane.record_pending_slash_command_history();
++            return;
++        }
++        self.set_service_tier_from_args(command, &args);
++        self.bottom_pane.drain_pending_submission_state();
++        self.bottom_pane.record_pending_slash_command_history();
++    }
++
+     /// Dispatch an inline slash command and record its staged local-history entry.
+     ///
+     /// Inline command arguments may later be prepared through the normal submission pipeline, but
+@@ -684,6 +707,9 @@ impl ChatWidget {
+             SlashCommand::Ide => {
+                 self.handle_ide_command_args(trimmed);
+             }
++            SlashCommand::Model => {
++                self.apply_model_selection_from_args(trimmed);
++            }
+             SlashCommand::Mcp => match trimmed.to_ascii_lowercase().as_str() {
+                 "verbose" => self.add_mcp_output(McpServerStatusDetail::Full),
+                 _ => self.add_error_message("Usage: /mcp [verbose]".to_string()),
+@@ -986,15 +1012,18 @@ impl ChatWidget {
+             });
+             return QueueDrain::Stop;
+         }
+-        let SlashCommandItem::Builtin(cmd) = command else {
+-            self.submit_user_message(UserMessage {
+-                text,
+-                local_images,
+-                remote_image_urls,
+-                text_elements,
+-                mention_bindings,
+-            });
+-            return QueueDrain::Stop;
++        // Queued input has its own copy of this dispatch. Service tiers must be
++        // handled here too, or `/fast on` would apply when typed idle but be
++        // sent to the model as chat when queued during a running turn.
++        let cmd = match command {
++            SlashCommandItem::Builtin(cmd) => cmd,
++            SlashCommandItem::ServiceTier(command) => {
++                self.handle_service_tier_command_with_args_dispatch(
++                    command,
++                    rest.trim().to_string(),
++                );
++                return QueueDrain::Continue;
++            }
+         };
+ 
+         let trimmed_start = rest.trim_start();
+diff --git a/codex-rs/tui/src/chatwidget/tests/slash_commands.rs b/codex-rs/tui/src/chatwidget/tests/slash_commands.rs
+index 47d597d..837b435 100644
+--- a/codex-rs/tui/src/chatwidget/tests/slash_commands.rs
++++ b/codex-rs/tui/src/chatwidget/tests/slash_commands.rs
+@@ -2933,3 +2933,141 @@ async fn compact_queues_user_messages_snapshot() {
+         normalize_snapshot_paths(term.backend().vt100().screen().contents())
+     );
+ }
++
++#[tokio::test]
++async fn minds_slash_model_with_inline_args_applies_model_and_effort() {
++    let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(Some("gpt-5.4")).await;
++    chat.thread_id = Some(ThreadId::new());
++    let _ = drain_insert_history(&mut rx);
++
++    let preset = get_available_model(&chat, "gpt-5.4");
++    let effort = preset
++        .supported_reasoning_efforts
++        .first()
++        .expect("gpt-5.4 should support at least one reasoning effort")
++        .effort
++        .clone();
++
++    chat.dispatch_command_with_args(
++        SlashCommand::Model,
++        format!("gpt-5.4 {}", effort.as_str()),
++        Vec::new(),
++    );
++
++    let events = std::iter::from_fn(|| rx.try_recv().ok()).collect::<Vec<_>>();
++    assert!(
++        events.iter().any(|event| matches!(
++            event,
++            AppEvent::UpdateModel(model) if model == "gpt-5.4"
++        )),
++        "expected model update event; events: {events:?}"
++    );
++    assert!(
++        events.iter().any(|event| matches!(
++            event,
++            AppEvent::UpdateReasoningEffort(Some(applied)) if *applied == effort
++        )),
++        "expected reasoning effort {effort:?}; events: {events:?}"
++    );
++}
++
++#[tokio::test]
++async fn minds_slash_model_with_unknown_model_reports_error_and_applies_nothing() {
++    let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(Some("gpt-5.4")).await;
++    chat.thread_id = Some(ThreadId::new());
++    let _ = drain_insert_history(&mut rx);
++
++    chat.dispatch_command_with_args(
++        SlashCommand::Model,
++        "definitely-not-a-model high".to_string(),
++        Vec::new(),
++    );
++
++    let events = std::iter::from_fn(|| rx.try_recv().ok()).collect::<Vec<_>>();
++    assert!(
++        events
++            .iter()
++            .all(|event| !matches!(event, AppEvent::UpdateModel(_))),
++        "unknown model must not change the model; events: {events:?}"
++    );
++}
++
++/// Collect `PersistServiceTierSelection` payloads emitted since the last drain.
++fn persisted_service_tiers(rx: &mut tokio::sync::mpsc::UnboundedReceiver<AppEvent>) -> Vec<Option<String>> {
++    std::iter::from_fn(|| rx.try_recv().ok())
++        .filter_map(|event| match event {
++            AppEvent::PersistServiceTierSelection { service_tier } => Some(service_tier),
++            _ => None,
++        })
++        .collect()
++}
++
++#[tokio::test]
++async fn minds_slash_fast_on_selects_the_fast_tier() {
++    let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(Some("gpt-5.4")).await;
++    chat.thread_id = Some(ThreadId::new());
++    let _ = drain_insert_history(&mut rx);
++    let _ = persisted_service_tiers(&mut rx);
++
++    chat.set_service_tier_from_args(fast_tier_command(), "on");
++
++    let persisted = persisted_service_tiers(&mut rx);
++    assert_eq!(
++        persisted,
++        vec![Some(ServiceTier::Fast.request_value().to_string())],
++        "'/fast on' should select the fast tier"
++    );
++}
++
++#[tokio::test]
++async fn minds_slash_fast_off_selects_the_default_tier() {
++    let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(Some("gpt-5.4")).await;
++    chat.thread_id = Some(ThreadId::new());
++    let _ = drain_insert_history(&mut rx);
++    chat.set_service_tier_from_args(fast_tier_command(), "on");
++    let _ = persisted_service_tiers(&mut rx);
++
++    chat.set_service_tier_from_args(fast_tier_command(), "off");
++
++    let persisted = persisted_service_tiers(&mut rx);
++    assert_eq!(
++        persisted,
++        vec![Some(SERVICE_TIER_DEFAULT_REQUEST_VALUE.to_string())],
++        "'/fast off' should select the default tier"
++    );
++}
++
++/// The whole point of `on`/`off` over the bare toggle: repeating it is a no-op
++/// rather than a flip back.
++#[tokio::test]
++async fn minds_slash_fast_on_is_idempotent() {
++    let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(Some("gpt-5.4")).await;
++    chat.thread_id = Some(ThreadId::new());
++    let _ = drain_insert_history(&mut rx);
++    let _ = persisted_service_tiers(&mut rx);
++
++    chat.set_service_tier_from_args(fast_tier_command(), "on");
++    chat.set_service_tier_from_args(fast_tier_command(), "on");
++
++    let fast = Some(ServiceTier::Fast.request_value().to_string());
++    assert_eq!(
++        persisted_service_tiers(&mut rx),
++        vec![fast.clone(), fast],
++        "repeating '/fast on' must stay on, not toggle off"
++    );
++}
++
++#[tokio::test]
++async fn minds_slash_fast_with_bad_arg_changes_nothing() {
++    let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(Some("gpt-5.4")).await;
++    chat.thread_id = Some(ThreadId::new());
++    let _ = drain_insert_history(&mut rx);
++    let _ = persisted_service_tiers(&mut rx);
++
++    chat.set_service_tier_from_args(fast_tier_command(), "maybe");
++
++    assert!(
++        persisted_service_tiers(&mut rx).is_empty(),
++        "an unrecognized argument must not change the service tier"
++    );
++}
+diff --git a/codex-rs/tui/src/slash_command.rs b/codex-rs/tui/src/slash_command.rs
+index abd1386..5745a68 100644
+--- a/codex-rs/tui/src/slash_command.rs
++++ b/codex-rs/tui/src/slash_command.rs
+@@ -154,6 +154,7 @@ impl SlashCommand {
+         matches!(
+             self,
+             SlashCommand::Review
++                | SlashCommand::Model
+                 | SlashCommand::Rename
+                 | SlashCommand::New
+                 | SlashCommand::Clear
