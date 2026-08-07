@@ -101,7 +101,10 @@ frontend carries a FIXME asking for exactly this.
 > rollout as a normal user turn once it is sent.
 
 Design notes and the source-level reasoning are in **[docs/spec.md](docs/spec.md)**
-and **[docs/spec-queued-transcript.md](docs/spec-queued-transcript.md)**.
+and **[docs/spec-queued-transcript.md](docs/spec-queued-transcript.md)**. How to
+build shoulder-tap UI on top of this — across both Claude Code and codex, with
+no optimistic rendering — is in
+**[docs/spec-shoulder-tap.md](docs/spec-shoulder-tap.md)**.
 
 ---
 
