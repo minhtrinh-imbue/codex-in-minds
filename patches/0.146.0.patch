@@ -1,5 +1,1181 @@
+diff --git a/codex-rs/Cargo.lock b/codex-rs/Cargo.lock
+index 38f79b8..09bbdc6 100644
+--- a/codex-rs/Cargo.lock
++++ b/codex-rs/Cargo.lock
+@@ -394,7 +394,7 @@ checksum = "2a4385e2e34eb35d6b3efe798b9eb88096925d87726c0798709bf56d9ed84af3"
+ 
+ [[package]]
+ name = "app_test_support"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "base64 0.22.1",
+@@ -1837,7 +1837,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-agent-extension"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "codex-core",
+@@ -1849,7 +1849,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-agent-graph-store"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "codex-protocol",
+  "codex-state",
+@@ -1864,7 +1864,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-agent-identity"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "base64 0.22.1",
+@@ -1884,7 +1884,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-analytics"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "codex-app-server-protocol",
+  "codex-git-utils",
+@@ -1905,7 +1905,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-ansi-escape"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "ansi-to-tui",
+  "ratatui",
+@@ -1914,7 +1914,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-api"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "assert_matches",
+@@ -1950,7 +1950,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-app-server"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "app_test_support",
+@@ -2047,7 +2047,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-app-server-client"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "codex-app-server",
+  "codex-app-server-protocol",
+@@ -2074,7 +2074,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-app-server-daemon"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "codex-app-server-protocol",
+@@ -2095,7 +2095,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-app-server-protocol"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "clap",
+@@ -2124,7 +2124,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-app-server-test-client"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "clap",
+@@ -2146,7 +2146,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-app-server-transport"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "axum",
+@@ -2188,7 +2188,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-apply-patch"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "assert_cmd",
+@@ -2208,7 +2208,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-arg0"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "codex-apply-patch",
+@@ -2228,7 +2228,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-async-utils"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "pretty_assertions",
+  "tokio",
+@@ -2237,7 +2237,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-aws-auth"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "aws-config",
+  "aws-credential-types",
+@@ -2252,7 +2252,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-backend-client"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "codex-api",
+@@ -2272,7 +2272,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-backend-openapi-models"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "serde",
+  "serde_json",
+@@ -2281,7 +2281,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-bwrap"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "cc",
+  "libc",
+@@ -2290,7 +2290,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-chatgpt"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "clap",
+@@ -2311,7 +2311,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-cli"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "app_test_support",
+@@ -2392,7 +2392,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-client"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "codex-http-client",
+  "eventsource-stream",
+@@ -2404,7 +2404,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-cloud-config"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "base64 0.22.1",
+  "chrono",
+@@ -2429,7 +2429,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-cloud-tasks"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "chrono",
+@@ -2460,7 +2460,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-cloud-tasks-client"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "chrono",
+@@ -2475,7 +2475,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-cloud-tasks-mock-client"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "chrono",
+  "codex-cloud-tasks-client",
+@@ -2484,7 +2484,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-code-mode"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "codex-code-mode-protocol",
+  "codex-http-client",
+@@ -2503,7 +2503,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-code-mode-host"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "axum",
+@@ -2525,7 +2525,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-code-mode-protocol"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "codex-protocol",
+  "pretty_assertions",
+@@ -2537,11 +2537,11 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-collaboration-mode-templates"
+-version = "0.0.0"
++version = "0.146.0"
+ 
+ [[package]]
+ name = "codex-config"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "base64 0.22.1",
+@@ -2589,7 +2589,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-connectors"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "arc-swap",
+@@ -2611,7 +2611,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-connectors-extension"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "codex-connectors",
+  "codex-core-plugins",
+@@ -2624,7 +2624,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-context-fragments"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "codex-protocol",
+  "codex-utils-string",
+@@ -2632,7 +2632,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-core"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "arc-swap",
+@@ -2762,7 +2762,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-core-api"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "codex-analytics",
+  "codex-app-server-protocol",
+@@ -2784,7 +2784,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-core-plugins"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "chrono",
+@@ -2837,7 +2837,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-core-skills"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "codex-analytics",
+@@ -2871,7 +2871,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-exec"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "assert_cmd",
+@@ -2917,7 +2917,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-exec-server"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "arc-swap",
+@@ -2971,7 +2971,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-exec-server-protocol"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "base64 0.22.1",
+  "codex-file-system",
+@@ -2986,7 +2986,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-exec-server-test-support"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "codex-exec-server",
+  "codex-http-client",
+@@ -2994,7 +2994,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-execpolicy"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "clap",
+@@ -3012,7 +3012,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-experimental-api-macros"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "proc-macro2",
+  "quote",
+@@ -3021,7 +3021,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-extension-api"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "codex-config",
+  "codex-context-fragments",
+@@ -3037,7 +3037,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-extension-items"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "codex-utils-absolute-path",
+  "pretty_assertions",
+@@ -3049,7 +3049,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-external-agent-migration"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "chrono",
+  "codex-analytics",
+@@ -3077,7 +3077,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-features"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "codex-otel",
+  "codex-protocol",
+@@ -3090,7 +3090,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-feedback"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "codex-login",
+@@ -3104,7 +3104,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-file-search"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "clap",
+@@ -3120,7 +3120,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-file-system"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "bytes",
+  "codex-protocol",
+@@ -3132,7 +3132,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-file-watcher"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "notify",
+  "pretty_assertions",
+@@ -3143,7 +3143,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-git-attribution"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "codex-backend-client",
+  "codex-extension-api",
+@@ -3156,7 +3156,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-git-utils"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "chrono",
+@@ -3181,7 +3181,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-goal-extension"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "chrono",
+@@ -3204,7 +3204,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-guardian"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "codex-core",
+  "codex-extension-api",
+@@ -3213,7 +3213,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-home"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "codex-extension-api",
+  "codex-utils-absolute-path",
+@@ -3224,7 +3224,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-hooks"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "chrono",
+@@ -3247,7 +3247,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-http-client"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "bytes",
+  "codex-utils-cargo-bin",
+@@ -3278,7 +3278,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-image-generation-extension"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "base64 0.22.1",
+  "codex-api",
+@@ -3305,7 +3305,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-install-context"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "codex-utils-absolute-path",
+  "codex-utils-home-dir",
+@@ -3315,7 +3315,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-keyring-store"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "keyring",
+  "tracing",
+@@ -3323,7 +3323,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-linux-sandbox"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "clap",
+  "codex-core",
+@@ -3348,7 +3348,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-lmstudio"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "codex-core",
+  "codex-http-client",
+@@ -3362,7 +3362,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-login"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "base64 0.22.1",
+@@ -3404,7 +3404,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-mcp"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "arc-swap",
+@@ -3441,7 +3441,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-mcp-extension"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "codex-config",
+  "codex-connectors",
+@@ -3467,7 +3467,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-mcp-server"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "app_test_support",
+@@ -3503,7 +3503,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-memories-extension"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "codex-core",
+  "codex-extension-api",
+@@ -3524,7 +3524,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-memories-read"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "codex-protocol",
+  "codex-shell-command",
+@@ -3534,7 +3534,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-memories-write"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "chrono",
+@@ -3571,7 +3571,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-message-history"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "codex-config",
+  "memchr",
+@@ -3585,7 +3585,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-model-provider"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "codex-agent-identity",
+  "codex-api",
+@@ -3608,7 +3608,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-model-provider-info"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "codex-api",
+  "codex-protocol",
+@@ -3624,7 +3624,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-models-manager"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "chrono",
+  "codex-collaboration-mode-templates",
+@@ -3644,7 +3644,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-network-proxy"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "base64 0.22.1",
+@@ -3682,7 +3682,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-ollama"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "assert_matches",
+  "async-stream",
+@@ -3702,7 +3702,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-otel"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "chrono",
+  "codex-api",
+@@ -3733,7 +3733,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-plugin"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "codex-config",
+  "codex-protocol",
+@@ -3746,7 +3746,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-process-hardening"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "libc",
+  "pretty_assertions",
+@@ -3754,7 +3754,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-prompts"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "codex-context-fragments",
+@@ -3768,7 +3768,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-protocol"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "chardetng",
+@@ -3810,7 +3810,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-response-debug-context"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "base64 0.22.1",
+  "codex-api",
+@@ -3821,7 +3821,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-responses-api-proxy"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "clap",
+@@ -3838,7 +3838,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-rmcp-client"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "axum",
+@@ -3880,7 +3880,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-rollout"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "chrono",
+@@ -3906,7 +3906,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-rollout-trace"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "codex-code-mode",
+@@ -3922,7 +3922,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-sandboxing"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "codex-network-proxy",
+@@ -3946,7 +3946,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-secrets"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "age",
+  "anyhow",
+@@ -3967,7 +3967,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-shell-command"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "base64 0.22.1",
+@@ -3988,7 +3988,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-shell-escalation"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "clap",
+@@ -4008,7 +4008,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-skills"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "codex-protocol",
+  "codex-utils-absolute-path",
+@@ -4019,7 +4019,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-skills-extension"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "codex-core-skills",
+  "codex-exec-server",
+@@ -4045,7 +4045,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-state"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "chrono",
+@@ -4071,7 +4071,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-stdio-to-uds"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "codex-uds",
+@@ -4083,7 +4083,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-terminal-detection"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "pretty_assertions",
+  "tracing",
+@@ -4091,7 +4091,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-test-binary-support"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "codex-arg0",
+  "tempfile",
+@@ -4099,7 +4099,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-thread-manager-sample"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "clap",
+@@ -4110,7 +4110,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-thread-store"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "chrono",
+  "codex-app-server-protocol",
+@@ -4138,7 +4138,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-tools"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "codex-code-mode",
+  "codex-connectors",
+@@ -4163,7 +4163,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-tui"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "app_test_support",
+@@ -4274,7 +4274,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-uds"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "async-io",
+  "pretty_assertions",
+@@ -4286,7 +4286,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-utils-absolute-path"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "dirs",
+  "dunce",
+@@ -4300,14 +4300,14 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-utils-approval-presets"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "codex-protocol",
+ ]
+ 
+ [[package]]
+ name = "codex-utils-cache"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "lru 0.16.3",
+  "sha1 0.10.6",
+@@ -4316,7 +4316,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-utils-cargo-bin"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "assert_cmd",
+  "runfiles",
+@@ -4325,7 +4325,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-utils-cli"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "clap",
+  "codex-protocol",
+@@ -4337,15 +4337,15 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-utils-elapsed"
+-version = "0.0.0"
++version = "0.146.0"
+ 
+ [[package]]
+ name = "codex-utils-fuzzy-match"
+-version = "0.0.0"
++version = "0.146.0"
+ 
+ [[package]]
+ name = "codex-utils-home-dir"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "codex-utils-absolute-path",
+  "dirs",
+@@ -4355,7 +4355,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-utils-image"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "base64 0.22.1",
+  "codex-utils-cache",
+@@ -4368,7 +4368,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-utils-json-to-toml"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "pretty_assertions",
+  "serde_json",
+@@ -4377,7 +4377,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-utils-oss"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "codex-core",
+  "codex-lmstudio",
+@@ -4387,7 +4387,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-utils-output-truncation"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "codex-protocol",
+  "codex-utils-string",
+@@ -4396,7 +4396,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-utils-path"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "codex-utils-absolute-path",
+  "dunce",
+@@ -4406,7 +4406,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-utils-path-uri"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "base64 0.22.1",
+  "codex-utils-absolute-path",
+@@ -4422,7 +4422,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-utils-plugins"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "codex-exec-server",
+  "codex-exec-server-protocol",
+@@ -4436,7 +4436,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-utils-pty"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "filedescriptor",
+@@ -4452,7 +4452,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-utils-readiness"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "assert_matches",
+  "thiserror 2.0.18",
+@@ -4462,14 +4462,14 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-utils-rustls-provider"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "rustls",
+ ]
+ 
+ [[package]]
+ name = "codex-utils-sandbox-summary"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "codex-protocol",
+  "codex-utils-absolute-path",
+@@ -4478,7 +4478,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-utils-sleep-inhibitor"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "core-foundation 0.9.4",
+  "libc",
+@@ -4488,14 +4488,14 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-utils-stream-parser"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "pretty_assertions",
+ ]
+ 
+ [[package]]
+ name = "codex-utils-string"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "pretty_assertions",
+  "regex-lite",
+@@ -4505,14 +4505,14 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-utils-template"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "pretty_assertions",
+ ]
+ 
+ [[package]]
+ name = "codex-v8-poc"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "pretty_assertions",
+  "v8",
+@@ -4520,7 +4520,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-web-search-extension"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "codex-api",
+  "codex-core",
+@@ -4541,7 +4541,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-websocket-client"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "codex-http-client",
+  "codex-utils-rustls-provider",
+@@ -4557,7 +4557,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "codex-windows-sandbox"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "base64 0.22.1",
+@@ -4808,7 +4808,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "core_test_support"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "assert_cmd",
+@@ -8970,7 +8970,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "mcp_test_support"
+-version = "0.0.0"
++version = "0.146.0"
+ dependencies = [
+  "anyhow",
+  "codex-login",
 diff --git a/codex-rs/tui/src/bottom_pane/chat_composer.rs b/codex-rs/tui/src/bottom_pane/chat_composer.rs
-index 7ca6bb0..9402e68 100644
+index 7ca6bb0..25aae93 100644
 --- a/codex-rs/tui/src/bottom_pane/chat_composer.rs
 +++ b/codex-rs/tui/src/bottom_pane/chat_composer.rs
 @@ -341,6 +341,11 @@ pub enum InputResult {
@@ -39,7 +1215,53 @@ index 7ca6bb0..9402e68 100644
          };
          Some(InputResult::CommandWithArgs(
              cmd,
-@@ -9343,7 +9355,8 @@ mod tests {
+@@ -9286,6 +9298,45 @@ mod tests {
+         );
+     }
+ 
++    /// Regression: the popup-accept path guarded on `CommandItem::Builtin`, so a
++    /// service tier fell through to the bare `ServiceTierCommand` and the arg was
++    /// dropped -- `/fast on` toggled instead of setting. Reachable whenever the
++    /// popup is open, i.e. whenever the cursor sits inside the command token.
++    #[test]
++    fn minds_service_tier_inline_args_survive_the_command_popup() {
++        for left_presses in [0, 3] {
++            let (tx, _rx) = unbounded_channel::<AppEvent>();
++            let mut composer = ChatComposer::new(
++                /*has_input_focus*/ true,
++                AppEventSender::new(tx),
++                /*enhanced_keys_supported*/ false,
++                "Ask Codex to do anything".to_string(),
++                /*disable_paste_burst*/ false,
++            );
++            composer.set_service_tier_commands_enabled(/*enabled*/ true);
++            composer.set_service_tier_commands(vec![ServiceTierCommand {
++                id: "priority".to_string(),
++                name: "fast".to_string(),
++                description: "Fastest inference with increased plan usage".to_string(),
++            }]);
++            type_chars_humanlike(&mut composer, &['/', 'f', 'a', 's', 't', ' ', 'o', 'n']);
++            for _ in 0..left_presses {
++                composer.handle_key_event(KeyEvent::new(KeyCode::Left, KeyModifiers::NONE));
++            }
++
++            let (result, _needs_redraw) =
++                composer.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
++
++            match result {
++                InputResult::ServiceTierCommandWithArgs(command, args) => {
++                    assert_eq!(command.name, "fast");
++                    assert_eq!(args, "on", "after {left_presses} Left presses");
++                }
++                other => panic!("after {left_presses} Left presses, got {other:?}"),
++            }
++        }
++    }
++
+     fn flush_after_paste_burst(composer: &mut ChatComposer) -> bool {
+         std::thread::sleep(PasteBurst::recommended_active_flush_delay());
+         composer.flush_paste_burst_if_due()
+@@ -9343,7 +9394,8 @@ mod tests {
              InputResult::CommandWithArgs(_, _, _) => {
                  panic!("expected command dispatch without args for '/init'")
              }
@@ -49,7 +1271,7 @@ index 7ca6bb0..9402e68 100644
                  panic!("expected init command, got service tier {command:?}")
              }
              InputResult::Submitted { text, .. } => {
-@@ -9853,7 +9866,8 @@ mod tests {
+@@ -9853,7 +9905,8 @@ mod tests {
              InputResult::CommandWithArgs(_, _, _) => {
                  panic!("expected command dispatch without args for '/diff'")
              }
@@ -59,7 +1281,7 @@ index 7ca6bb0..9402e68 100644
                  panic!("expected diff command, got service tier {command:?}")
              }
              InputResult::Submitted { text, .. } => {
-@@ -10053,7 +10067,8 @@ mod tests {
+@@ -10053,7 +10106,8 @@ mod tests {
              InputResult::CommandWithArgs(_, _, _) => {
                  panic!("expected command dispatch without args for '/mention'")
              }
@@ -70,10 +1292,49 @@ index 7ca6bb0..9402e68 100644
              }
              InputResult::Submitted { text, .. } => {
 diff --git a/codex-rs/tui/src/bottom_pane/chat_composer/slash_input.rs b/codex-rs/tui/src/bottom_pane/chat_composer/slash_input.rs
-index d8a6201..87db5f6 100644
+index d8a6201..6bc0fc6 100644
 --- a/codex-rs/tui/src/bottom_pane/chat_composer/slash_input.rs
 +++ b/codex-rs/tui/src/bottom_pane/chat_composer/slash_input.rs
-@@ -641,14 +641,17 @@ mod tests {
+@@ -389,12 +389,10 @@ impl ChatComposer {
+         &mut self,
+         selected_cmd: &CommandItem,
+     ) -> bool {
+-        let CommandItem::Builtin(cmd) = selected_cmd else {
+-            return false;
+-        };
+-        if !cmd.supports_inline_args() {
++        if !selected_cmd.supports_inline_args() {
+             return false;
+         }
++        let selected_command_name = selected_cmd.command();
+ 
+         let text = self.draft.textarea.text();
+         let first_line_end = text.find('\n').unwrap_or(text.len());
+@@ -412,15 +410,16 @@ impl ChatComposer {
+         if rest_after_token_is_empty && (cursor <= 1 || cursor >= command_token_end) {
+             return false;
+         }
+-        let replace_end =
+-            if cursor <= 1 || (typed_command_name == cmd.command() && rest_after_token_is_empty) {
+-                command_token_end
+-            } else {
+-                cursor
+-            };
++        let replace_end = if cursor <= 1
++            || (typed_command_name == selected_command_name && rest_after_token_is_empty)
++        {
++            command_token_end
++        } else {
++            cursor
++        };
+         let tail = &text[replace_end..];
+         let tail_starts_with_whitespace = tail.chars().next().is_some_and(char::is_whitespace);
+-        let selected_command_text = format!("/{}", cmd.command());
++        let selected_command_text = format!("/{selected_command_name}");
+         let replacement = if tail_starts_with_whitespace {
+             selected_command_text
+         } else {
+@@ -641,14 +640,17 @@ mod tests {
  
      #[test]
      fn slash_completion_does_not_preserve_existing_draft_tail_for_other_commands() {
@@ -94,8 +1355,63 @@ index d8a6201..87db5f6 100644
      }
  
      #[test]
+diff --git a/codex-rs/tui/src/bottom_pane/command_popup.rs b/codex-rs/tui/src/bottom_pane/command_popup.rs
+index f613e5e..3509dce 100644
+--- a/codex-rs/tui/src/bottom_pane/command_popup.rs
++++ b/codex-rs/tui/src/bottom_pane/command_popup.rs
+@@ -259,6 +259,14 @@ impl CommandItem {
+             Self::ServiceTier(command) => &command.description,
+         }
+     }
++
++    pub(crate) fn supports_inline_args(&self) -> bool {
++        match self {
++            Self::Builtin(cmd) => cmd.supports_inline_args(),
++            // Mirrors SlashCommandItem: `/fast on` and `/fast off` take an arg.
++            Self::ServiceTier(_) => true,
++        }
++    }
+ }
+ 
+ impl WidgetRef for CommandPopup {
+@@ -281,6 +289,7 @@ impl WidgetRef for CommandPopup {
+ #[cfg(test)]
+ mod tests {
+     use super::*;
++    use crate::bottom_pane::slash_commands::test_lockdown::with_minds_lockdown;
+     use pretty_assertions::assert_eq;
+ 
+     #[test]
+@@ -505,6 +514,27 @@ mod tests {
+         assert!(items.contains(&CommandItem::Builtin(SlashCommand::Btw)));
+     }
+ 
++    /// Upstream (just above) surfaces `/quit` and `/btw` once a prefix is typed.
++    /// A shipped Minds binary withholds them even on an exact match -- the popup
++    /// is where a user would otherwise discover the command.
++    #[test]
++    fn minds_withheld_commands_stay_hidden_for_an_exact_prefix() {
++        with_minds_lockdown(|| {
++            for (prefix, cmd) in [
++                ("/qu", SlashCommand::Quit),
++                ("/bt", SlashCommand::Btw),
++                ("/pl", SlashCommand::Plan),
++            ] {
++                let mut popup = CommandPopup::new(CommandPopupFlags::default(), Vec::new());
++                popup.on_composer_text_change(prefix.to_string());
++                assert!(
++                    !popup.filtered_items().contains(&CommandItem::Builtin(cmd)),
++                    "{prefix} should not surface {cmd:?}"
++                );
++            }
++        });
++    }
++
+     #[test]
+     fn plan_command_hidden_when_collaboration_modes_disabled() {
+         let mut popup = CommandPopup::new(CommandPopupFlags::default(), Vec::new());
 diff --git a/codex-rs/tui/src/bottom_pane/slash_commands.rs b/codex-rs/tui/src/bottom_pane/slash_commands.rs
-index 6ca1ba9..c14c1f9 100644
+index 6ca1ba9..304884c 100644
 --- a/codex-rs/tui/src/bottom_pane/slash_commands.rs
 +++ b/codex-rs/tui/src/bottom_pane/slash_commands.rs
 @@ -34,7 +34,9 @@ impl SlashCommandItem {
@@ -109,7 +1425,7 @@ index 6ca1ba9..c14c1f9 100644
          }
      }
  
-@@ -66,10 +68,42 @@ pub(crate) struct BuiltinCommandFlags {
+@@ -66,10 +68,80 @@ pub(crate) struct BuiltinCommandFlags {
      pub(crate) side_conversation_active: bool,
  }
  
@@ -144,15 +1460,61 @@ index 6ca1ba9..c14c1f9 100644
 +    SlashCommand::Plan,
 +];
 +
++/// Always on in a shipped binary. Off by default under `cfg(test)` so the
++/// upstream suite keeps testing upstream behavior: roughly fifteen of its tests
++/// drive a blocked command purely as a vehicle for something else (draft
++/// recall, named sessions, vim reset), and rewriting them would mean rewriting
++/// them again after every rebase. Tests that assert the lockdown itself opt in
++/// with `with_minds_lockdown`.
++#[cfg(not(test))]
++fn minds_lockdown_enabled() -> bool {
++    true
++}
++
++#[cfg(test)]
++fn minds_lockdown_enabled() -> bool {
++    test_lockdown::enabled()
++}
++
++#[cfg(test)]
++pub(crate) mod test_lockdown {
++    use std::cell::Cell;
++
++    // Thread-local, not a global: libtest runs tests as threads in one process.
++    thread_local! {
++        static ENABLED: Cell<bool> = const { Cell::new(false) };
++    }
++
++    pub(crate) fn enabled() -> bool {
++        ENABLED.with(Cell::get)
++    }
++
++    /// Run `f` with the Minds command lockdown active, as a shipped binary has it.
++    pub(crate) fn with_minds_lockdown<T>(f: impl FnOnce() -> T) -> T {
++        ENABLED.with(|flag| flag.set(true));
++        let result = f();
++        ENABLED.with(|flag| flag.set(false));
++        result
++    }
++}
++
  /// Return the built-ins that should be visible/usable for the current input.
  pub(crate) fn builtins_for_input(flags: BuiltinCommandFlags) -> Vec<(&'static str, SlashCommand)> {
      built_in_slash_commands()
          .into_iter()
-+        .filter(|(_, cmd)| !MINDS_BLOCKED_COMMANDS.contains(cmd))
++        .filter(|(_, cmd)| !minds_lockdown_enabled() || !MINDS_BLOCKED_COMMANDS.contains(cmd))
          .filter(|(_, cmd)| flags.allow_elevate_sandbox || *cmd != SlashCommand::ElevateSandbox)
          .filter(|(_, cmd)| flags.collaboration_modes_enabled || *cmd != SlashCommand::Plan)
          .filter(|(_, cmd)| flags.connectors_enabled || *cmd != SlashCommand::Apps)
-@@ -182,12 +216,48 @@ mod tests {
+@@ -158,6 +230,7 @@ pub(crate) fn has_slash_command_prefix(
+ 
+ #[cfg(test)]
+ mod tests {
++    use super::test_lockdown::with_minds_lockdown;
+     use super::*;
+     use pretty_assertions::assert_eq;
+     use std::slice::from_ref;
+@@ -182,6 +255,9 @@ mod tests {
          assert_eq!(cmd, Some(SlashCommand::DebugConfig));
      }
  
@@ -161,50 +1523,56 @@ index 6ca1ba9..c14c1f9 100644
 +    /// lifted this fails loudly instead of silently going unchecked.
      #[test]
      fn clear_command_resolves_for_dispatch() {
--        assert_eq!(
--            find_builtin_command("clear", all_enabled_flags()),
--            Some(SlashCommand::Clear)
--        );
-+        assert_eq!(find_builtin_command("clear", all_enabled_flags()), None);
-+    }
-+
+         assert_eq!(
+@@ -190,6 +266,48 @@ mod tests {
+         );
+     }
+ 
 +    #[test]
 +    fn minds_blocked_commands_do_not_resolve() {
-+        for cmd in MINDS_BLOCKED_COMMANDS {
-+            assert_eq!(
-+                find_builtin_command(cmd.command(), all_enabled_flags()),
-+                None,
-+                "/{} should be blocked in Minds",
-+                cmd.command()
-+            );
-+        }
++        with_minds_lockdown(|| {
++            for cmd in MINDS_BLOCKED_COMMANDS {
++                assert_eq!(
++                    find_builtin_command(cmd.command(), all_enabled_flags()),
++                    None,
++                    "/{} should be blocked in Minds",
++                    cmd.command()
++                );
++            }
++        });
 +    }
 +
 +    /// Without this, a filter bug that hides every command passes the test above.
 +    #[test]
 +    fn minds_allowed_commands_still_resolve() {
-+        for name in ["model", "status", "diff", "compact", "review"] {
-+            assert!(
-+                find_builtin_command(name, all_enabled_flags()).is_some(),
-+                "/{name} should still be available"
-+            );
-+        }
++        with_minds_lockdown(|| {
++            for name in ["model", "status", "diff", "compact", "review"] {
++                assert!(
++                    find_builtin_command(name, all_enabled_flags()).is_some(),
++                    "/{name} should still be available"
++                );
++            }
++        });
 +    }
 +
 +    /// The aliases are separate enum variants; blocking only the primary would
 +    /// leave these reachable and the lockdown cosmetic.
 +    #[test]
 +    fn minds_blocked_command_aliases_do_not_resolve() {
-+        for name in ["quit", "exit", "btw", "side", "subagents", "agent", "new"] {
-+            assert_eq!(
-+                find_builtin_command(name, all_enabled_flags()),
-+                None,
-+                "/{name} should be blocked in Minds"
-+            );
-+        }
-     }
- 
++        with_minds_lockdown(|| {
++            for name in ["quit", "exit", "btw", "side", "subagents", "agent", "new"] {
++                assert_eq!(
++                    find_builtin_command(name, all_enabled_flags()),
++                    None,
++                    "/{name} should be blocked in Minds"
++                );
++            }
++        });
++    }
++
      #[test]
+     fn goal_command_allows_extra_os_for_dispatch() {
+         assert_eq!(
 diff --git a/codex-rs/tui/src/chatwidget.rs b/codex-rs/tui/src/chatwidget.rs
 index a3d539e..ff5aa2c 100644
 --- a/codex-rs/tui/src/chatwidget.rs
@@ -218,18 +1586,16 @@ index a3d539e..ff5aa2c 100644
  mod input_flow;
  mod input_restore;
 diff --git a/codex-rs/tui/src/chatwidget/input_flow.rs b/codex-rs/tui/src/chatwidget/input_flow.rs
-index f26d50a..f03a611 100644
+index f26d50a..a8e1343 100644
 --- a/codex-rs/tui/src/chatwidget/input_flow.rs
 +++ b/codex-rs/tui/src/chatwidget/input_flow.rs
-@@ -65,6 +65,13 @@ impl ChatWidget {
+@@ -65,6 +65,11 @@ impl ChatWidget {
              InputResult::ServiceTierCommand(command) => {
                  self.handle_service_tier_command_dispatch(command);
              }
 +            InputResult::ServiceTierCommandWithArgs(command, args) => {
 +                self.handle_service_tier_command_with_args_dispatch(
-+                    command,
-+                    args,
-+                    /*clear_composer*/ true,
++                    command, args, /*clear_composer*/ true,
 +                );
 +            }
              InputResult::CommandWithArgs(cmd, args, text_elements) => {
@@ -258,10 +1624,10 @@ index 830cd3e..e627309 100644
              self.transcript.saw_plan_item_this_turn = false;
              self.refresh_pending_input_preview();
 diff --git a/codex-rs/tui/src/chatwidget/model_popups.rs b/codex-rs/tui/src/chatwidget/model_popups.rs
-index c8ace98..7905377 100644
+index c8ace98..4314d6b 100644
 --- a/codex-rs/tui/src/chatwidget/model_popups.rs
 +++ b/codex-rs/tui/src/chatwidget/model_popups.rs
-@@ -32,6 +32,107 @@ impl ChatWidget {
+@@ -32,6 +32,116 @@ impl ChatWidget {
          self.open_model_popup_with_presets(presets);
      }
  
@@ -352,18 +1718,27 @@ index c8ace98..7905377 100644
 +            }
 +        };
 +
-+        let should_prompt_plan_mode_scope =
-+            self.should_prompt_plan_mode_reasoning_scope(preset.model.as_str(), Some(effort.clone()));
-+        let actions =
-+            self.model_selection_actions(preset.model.clone(), Some(effort), should_prompt_plan_mode_scope);
++        let should_prompt_plan_mode_scope = self
++            .should_prompt_plan_mode_reasoning_scope(preset.model.as_str(), Some(effort.clone()));
++        let actions = self.model_selection_actions(
++            preset.model.clone(),
++            Some(effort),
++            should_prompt_plan_mode_scope,
++        );
 +        for action in actions {
 +            action(&self.app_event_tx);
 +        }
-+        // Not redundant on this path: `model_selection_actions` emits
-+        // `OpenPlanReasoningScopePrompt` when the plan-mode-scope branch applies,
-+        // so a popup can still be on screen here and queued input must not
-+        // autosend behind it. A guarded no-op when no popup opened.
-+        self.defer_input_until_settings_applied();
++        // `model_selection_actions` only *sends* `OpenPlanReasoningScopePrompt`;
++        // the popup opens a tick later when the app drains the event queue. So
++        // `defer_input_until_settings_applied`, which arms the flag only while a
++        // popup is already on screen, would be a no-op right here. Arm it
++        // directly instead, or queued input can autosend a turn against the old
++        // model while the scope prompt is still unanswered.
++        // `SettingsSelectionClosed -> SettingsSelectionSettled` clears it when
++        // the prompt closes.
++        if should_prompt_plan_mode_scope {
++            self.input_queue.suppress_queue_autosend = true;
++        }
 +    }
 +
      fn model_menu_header(&self, title: &str, subtitle: &str) -> Box<dyn Renderable> {
@@ -371,10 +1746,10 @@ index c8ace98..7905377 100644
          let subtitle = subtitle.to_string();
 diff --git a/codex-rs/tui/src/chatwidget/queued_input_log.rs b/codex-rs/tui/src/chatwidget/queued_input_log.rs
 new file mode 100644
-index 0000000..7d77405
+index 0000000..bc209f5
 --- /dev/null
 +++ b/codex-rs/tui/src/chatwidget/queued_input_log.rs
-@@ -0,0 +1,180 @@
+@@ -0,0 +1,184 @@
 +//! Append-only log of user input queued while a turn is running.
 +//!
 +//! # Why this exists
@@ -502,7 +1877,11 @@ index 0000000..7d77405
 +    fn minds_queued_input_record_is_one_json_line() {
 +        let line = queued_input_record("qid-1", Some("thread-1"), "2026-01-01T00:00:00.000Z", "hi");
 +        assert!(line.ends_with('\n'), "record must be newline-terminated");
-+        assert_eq!(line.matches('\n').count(), 1, "record must be a single line");
++        assert_eq!(
++            line.matches('\n').count(),
++            1,
++            "record must be a single line"
++        );
 +
 +        let parsed: serde_json::Value =
 +            serde_json::from_str(line.trim_end()).expect("record should be valid JSON");
@@ -587,7 +1966,7 @@ index 7338673..86a47a8 100644
          self.bottom_pane
              .set_service_tier_commands_enabled(self.fast_mode_enabled());
 diff --git a/codex-rs/tui/src/chatwidget/slash_dispatch.rs b/codex-rs/tui/src/chatwidget/slash_dispatch.rs
-index e28cfd7..3840b34 100644
+index e28cfd7..a66edd8 100644
 --- a/codex-rs/tui/src/chatwidget/slash_dispatch.rs
 +++ b/codex-rs/tui/src/chatwidget/slash_dispatch.rs
 @@ -66,6 +66,57 @@ impl ChatWidget {
@@ -658,6 +2037,15 @@ index e28cfd7..3840b34 100644
              SlashCommand::Mcp => match trimmed.to_ascii_lowercase().as_str() {
                  "verbose" => self.add_mcp_output(McpServerStatusDetail::Full),
                  _ => self.add_error_message("Usage: /mcp [verbose]".to_string()),
+@@ -967,7 +1021,7 @@ impl ChatWidget {
+             return match command {
+                 SlashCommandItem::Builtin(cmd) => {
+                     self.dispatch_command(cmd);
+-                    self.queued_command_drain_result(cmd)
++                    self.queued_command_drain_result(cmd, /*has_args*/ false)
+                 }
+                 SlashCommandItem::ServiceTier(command) => {
+                     self.handle_service_tier_command_dispatch(command);
 @@ -986,15 +1040,19 @@ impl ChatWidget {
              });
              return QueueDrain::Stop;
@@ -687,14 +2075,76 @@ index e28cfd7..3840b34 100644
          };
  
          let trimmed_start = rest.trim_start();
+@@ -1017,7 +1075,7 @@ impl ChatWidget {
+                 source: SlashCommandDispatchSource::Queued,
+             },
+         );
+-        self.queued_command_drain_result(cmd)
++        self.queued_command_drain_result(cmd, /*has_args*/ true)
+     }
+ 
+     fn builtin_command_flags(&self) -> BuiltinCommandFlags {
+@@ -1050,10 +1108,16 @@ impl ChatWidget {
+         false
+     }
+ 
+-    fn queued_command_drain_result(&self, cmd: SlashCommand) -> QueueDrain {
++    fn queued_command_drain_result(&self, cmd: SlashCommand, has_args: bool) -> QueueDrain {
+         if self.is_user_turn_pending_or_running() || !self.bottom_pane.no_modal_or_popup_active() {
+             return QueueDrain::Stop;
+         }
++        // Bare `/model` stops the queue because it opens the picker. `/model <args>`
++        // applies the selection outright, so stopping there strands the rest of the
++        // queue. The popup guard above still covers a dispatch that did open one.
++        if cmd == SlashCommand::Model && has_args {
++            return QueueDrain::Continue;
++        }
+         match cmd {
+             SlashCommand::Ide
+             | SlashCommand::Status
 diff --git a/codex-rs/tui/src/chatwidget/tests/slash_commands.rs b/codex-rs/tui/src/chatwidget/tests/slash_commands.rs
-index 47d597d..0664eb8 100644
+index 47d597d..2e143ca 100644
 --- a/codex-rs/tui/src/chatwidget/tests/slash_commands.rs
 +++ b/codex-rs/tui/src/chatwidget/tests/slash_commands.rs
-@@ -2933,3 +2933,188 @@ async fn compact_queues_user_messages_snapshot() {
+@@ -2933,3 +2933,228 @@ async fn compact_queues_user_messages_snapshot() {
          normalize_snapshot_paths(term.backend().vt100().screen().contents())
      );
  }
++
++/// Both inline-arg commands Minds adds apply outright instead of opening a
++/// picker, so neither may stop the drain. `/model` regressed exactly this way:
++/// it sits in the static Stop list because *bare* `/model` opens the picker,
++/// which stranded everything queued behind `/model <args>`.
++#[tokio::test]
++async fn minds_queued_inline_args_commands_do_not_strand_the_queue() {
++    for command in ["/fast on", "/model gpt-5.4"] {
++        let (mut chat, _rx, mut op_rx) = make_chatwidget_manual(Some("gpt-5.4")).await;
++        chat.thread_id = Some(ThreadId::new());
++        set_chatgpt_auth(&mut chat);
++        set_fast_mode_test_catalog(&mut chat);
++        chat.set_feature_enabled(Feature::FastMode, /*enabled*/ true);
++        handle_turn_started(&mut chat, "turn-1");
++
++        queue_composer_text_with_tab(&mut chat, command);
++        queue_composer_text_with_tab(&mut chat, "hello after command");
++
++        complete_turn_with_message(&mut chat, "turn-1", Some("done"));
++
++        match next_submit_op(&mut op_rx) {
++            Op::UserTurn { items, .. } => assert_eq!(
++                items,
++                vec![UserInput::Text {
++                    text: "hello after command".to_string(),
++                    text_elements: Vec::new(),
++                }],
++                "queued message should still submit after {command}"
++            ),
++            other => {
++                panic!("after {command}, expected the queued message to submit, got {other:?}")
++            }
++        }
++    }
++}
 +
 +#[tokio::test]
 +async fn minds_slash_model_with_inline_args_applies_model_and_effort() {
@@ -755,7 +2205,9 @@ index 47d597d..0664eb8 100644
 +}
 +
 +/// Collect `PersistServiceTierSelection` payloads emitted since the last drain.
-+fn persisted_service_tiers(rx: &mut tokio::sync::mpsc::UnboundedReceiver<AppEvent>) -> Vec<Option<String>> {
++fn persisted_service_tiers(
++    rx: &mut tokio::sync::mpsc::UnboundedReceiver<AppEvent>,
++) -> Vec<Option<String>> {
 +    std::iter::from_fn(|| rx.try_recv().ok())
 +        .filter_map(|event| match event {
 +            AppEvent::PersistServiceTierSelection { service_tier } => Some(service_tier),
@@ -865,8 +2317,11 @@ index 47d597d..0664eb8 100644
 +    let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(Some("gpt-5.4")).await;
 +    chat.thread_id = Some(ThreadId::new());
 +    let _ = drain_insert_history(&mut rx);
-+    chat.bottom_pane
-+        .set_composer_text("a draft I am still typing".to_string(), Vec::new(), Vec::new());
++    chat.bottom_pane.set_composer_text(
++        "a draft I am still typing".to_string(),
++        Vec::new(),
++        Vec::new(),
++    );
 +
 +    chat.handle_service_tier_command_with_args_dispatch(
 +        fast_tier_command(),

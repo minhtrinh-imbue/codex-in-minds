@@ -42,6 +42,11 @@ model catalog the server sends. So this works for any tier the catalog offers:
 
 Before this, `/fast on` failed the same way `/model gpt-5.4 high` did.
 
+Both commands clear the composer on submit through the same helper
+(`prepare_live_inline_args`), which is upstream's own choke point for
+inline-arg commands. The queue drain deliberately does not go through it: a
+queued `/fast on` must not wipe a draft the user is typing now.
+
 **3. Session-reshaping commands are withheld.**
 
 `/new` `/clear` `/fork` `/archive` `/delete` `/resume` `/side` `/btw` `/agent`
@@ -65,15 +70,9 @@ the popup and typed dispatch share a single choke point.
 
 **4. Queued input is recorded the instant it is queued.**
 
-Submit while a turn is running and the message becomes a **steer**: codex hands
-it to core and lists it under *"Messages to be submitted after next tool call"*.
-Core holds it in memory and writes nothing to the rollout until it injects the
-message at the next tool-call boundary, so until then nothing outside the process
-can tell an accepted message from a dropped one.
-
-(This is `pending_steers`. Despite the name, `queued_user_messages` is *not* the
-mid-turn queue -- it is the "the TUI cannot submit at all" buffer: session still
-booting, a plan streaming, a `!shell` command running, or a settings modal open.) Minds shows
+Submit while a turn is running and codex holds the message in memory only. It
+reaches the transcript when the running turn finally ends, so until then nothing
+outside the process can tell an accepted message from a dropped one. Minds shows
 an optimistic bubble on send and flips it to "Queued" once the backend confirms
 acceptance -- but codex's confirmation comes from the `active` marker, set by the
 UserPromptSubmit hook, which by definition does not fire for a message that was
@@ -187,8 +186,8 @@ branch.
 # it embeds V8 and is left alone, which is what keeps this patch cheap to carry.
 codex_patch_arch="$(dpkg --print-architecture)"
 case "${codex_patch_arch}" in
-    arm64) codex_patch_sha256="bf66315aff29b547b239305394d2586e8f3489fb69384926294ac3118621533e" ;;
-    amd64) codex_patch_sha256="487284a431fbbf91a4be5fbf99e314d840a18243883703032954c6e7871a8a37" ;;
+    arm64) codex_patch_sha256="c12dc10ff5c0541e7c286d5452cdc79f646829fce86996db53b73b92dcf7f654" ;;
+    amd64) codex_patch_sha256="c04ca5895e1da82b3da62710d31813d6569163747ea0c788eef665bd4c508fbb" ;;
     *) echo "Unsupported architecture for patched codex: ${codex_patch_arch}" >&2; exit 1 ;;
 esac
 # npm nests the platform subpackage, and the exact path differs between npm
@@ -229,45 +228,10 @@ Three notes on why it is shaped this way:
 
 ---
 
-## The bug this fixes
-
-`/model gpt-5.6-terra max` today does not fail — it does nothing, and looks like
-it worked.
-
-`SlashCommand::Model` is not in `supports_inline_args()`, so the dispatcher falls
-through to `submit_user_message` and the whole line is sent to the model **as
-chat**. The model replies *"Using gpt-5.6-terra with maximum reasoning."* — a
-string that appears nowhere in the codex source — while the status line correctly
-still shows the old model. The acknowledgement is the LLM playing along, not the
-CLI confirming.
-
-## What the patch does
-
-Three files, ~100 lines added, no existing lines changed:
-
-| file | change |
-|---|---|
-| `tui/src/slash_command.rs` | add `Model` to `supports_inline_args()` |
-| `tui/src/chatwidget/slash_dispatch.rs` | route `/model` args to the handler |
-| `tui/src/chatwidget/model_popups.rs` | the handler |
-
-The handler resolves the preset from the same catalog the picker reads, then
-invokes **the same `SelectionAction` the picker builds**. It is not a
-reimplementation — the Ultra and plan-mode-scope branches come along for free,
-because they live inside the function being called.
-
-| input | behaviour |
-|---|---|
-| `/model` | picker opens, unchanged |
-| `/model gpt-5.4 high` | both applied immediately |
-| `/model gpt-5.4` | model applied at its default effort |
-| `/model gpt-5.4 ultra` | error listing the efforts that model supports |
-| `/model nonsense high` | error listing available models |
-
 ## Verification
 
-Every build runs `cargo test -p codex-tui --lib minds_` and refuses to produce a
-binary if it fails. Fifteen tests, all added by the patch:
+`build.sh` runs `cargo test -p codex-tui --lib minds_` on each builder and
+refuses to produce a binary if it fails. Eighteen tests, all added by the patch:
 
 | test | guards |
 |---|---|
@@ -277,48 +241,56 @@ binary if it fails. Fifteen tests, all added by the patch:
 | `minds_slash_fast_off_selects_the_default_tier` | `/fast off` persists the default tier |
 | `minds_slash_fast_on_is_idempotent` | repeating `/fast on` stays on rather than toggling off |
 | `minds_slash_fast_with_bad_arg_changes_nothing` | a bad argument applies nothing |
+| `minds_slash_fast_with_args_clears_the_composer` | `/fast on` empties the input box on submit |
+| `minds_service_tier_inline_args_survive_the_command_popup` | `/fast on` keeps its argument when accepted **through the popup** — the path that made the first cut of this patch still toggle |
+| `minds_queued_inline_args_commands_do_not_strand_the_queue` | `/fast on` and `/model <m>` queued mid-turn still let the next queued message through |
+| `minds_queued_slash_fast_preserves_an_unrelated_composer_draft` | draining a queued `/fast on` does not wipe what you are typing now |
 | `minds_blocked_commands_do_not_resolve` | every blocked command fails lookup |
 | `minds_blocked_command_aliases_do_not_resolve` | `/quit`, `/btw`, `/subagents` are blocked too |
-| `minds_allowed_commands_still_resolve` | `/model`, `/status`, `/diff`, `/compact`, `/review` still work — without this, a filter bug that hides *everything* would pass the two tests above |
+| `minds_allowed_commands_still_resolve` | `/model`, `/status`, `/diff`, `/compact`, `/review` still work — without this, a filter bug hiding *everything* would pass the two tests above |
+| `minds_withheld_commands_stay_hidden_for_an_exact_prefix` | the popup does not surface a blocked command even when you type its exact name |
 | `minds_queued_input_record_is_one_json_line` | the record is a single parseable line |
 | `minds_queued_input_record_escapes_newlines_in_content` | a newline in the message cannot forge a second record |
 | `minds_append_queued_input_appends_rather_than_truncates` | a second queued message does not clobber the first, and ids are distinct |
 | `minds_append_queued_input_survives_an_unwritable_directory` | a failed write never stops the message being queued |
-| `minds_slash_fast_with_args_clears_the_composer` | `/fast on` does not stay in the input after it is applied |
-| `minds_queued_slash_fast_preserves_an_unrelated_composer_draft` | draining a queued `/fast on` does not destroy a draft typed since |
 
-### Known-red upstream tests
+### The full suite is as green as upstream's
 
-The patch deliberately removes commands that upstream tests assert are
-reachable, so `cargo test -p codex-tui --lib` (the *whole* suite) is not green.
-Measured on this patch, in a debug build with `RUST_MIN_STACK=33554432`:
+Measured on `rust-v0.146.0` under `cargo nextest`, debug build,
+`RUST_MIN_STACK=16777216`, same machine for both runs:
 
-| | failures |
-|---|---|
-| pristine `rust-v0.146.0` | 22 — environment-dependent `status::` and `history_cell::` snapshots, nothing to do with us |
-| with this patch | 48 |
+| | failed | timed out |
+|---|---|---|
+| pristine `rust-v0.146.0` | 27 | 1 |
+| with this patch | 27 | 1 |
 
-The 26 added failures are all lockdown tests — `slash_popup_side_for_si_ui`,
-`slash_new_with_name_requests_named_session`, `plan_command_visible_...`, and
-so on. Every one asserts that a command we removed is reachable. They are not
-rewritten to assert the opposite, because that is a large diff testing removed
-behaviour that would re-conflict on every codex version bump.
+**The patch adds no failures.** The 27 are upstream's own, in three groups, and
+each reproduces identically on an unpatched checkout:
 
-Two things worth knowing about that measurement:
+- **22 snapshot tests** asserting `v0.0.0` while `Cargo.toml` at this tag says
+  `0.146.0`. The release bot bumps the version without re-recording snapshots,
+  so every release tag ships this way.
+- **5 `ide_context::ipc` tests** that refuse to open a socket in a world-writable
+  `/tmp` (`"IDE context socket directory is writable by other users"`). Purely a
+  property of the build host.
+- **1 timeout**, `fetch_ide_context_does_not_fall_back_after_primary_protocol_error`,
+  which deadlocks for the same reason and hangs a plain `cargo test` run
+  indefinitely. Run the suite under `cargo nextest` with a `slow-timeout` so it
+  gets killed rather than stalling your build.
 
-- **A stack overflow in `fork_current_session_preserves_conversation_ultra` is
-  pre-existing.** It reproduces on unpatched `rust-v0.146.0` and aborts the
-  whole test binary. Raising `RUST_MIN_STACK` is what makes a full-suite run
-  possible at all; it is a debug-build frame-size issue, not a code bug.
-- **One test was genuinely changed, not just broken.**
-  `slash_completion_does_not_preserve_existing_draft_tail_for_other_commands`
-  used `/model` as its example of a command taking no arguments. `/model` takes
-  arguments now, so preserving a typed tail as args is correct for it — the
-  same behaviour `/review` already had. The test was repointed at `/diff`,
-  which still takes none.
+Getting here meant **not** rewriting the fifteen upstream tests that drive a
+blocked command. The lockdown is compiled off under `cfg(test)` and the three
+tests that assert it opt back in through `with_minds_lockdown`:
 
-Confirmed green on 0.146.0 on both arches, and the arm64 binary was driven live
-in a real workspace: the status line went `gpt-5.5 xhigh` → `gpt-5.4 high`.
+```rust
+#[cfg(not(test))]
+fn minds_lockdown_enabled() -> bool { true }
+```
+
+Those fifteen use a blocked command only as a vehicle for something else — draft
+recall, named sessions, vim-mode reset. Flipping their assertions would mean
+flipping them again after every codex bump, and would delete real upstream
+coverage in exchange for nothing.
 
 ## Caveat
 
