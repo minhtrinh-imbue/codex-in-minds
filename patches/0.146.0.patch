@@ -1174,6 +1174,110 @@ index 38f79b8..09bbdc6 100644
  dependencies = [
   "anyhow",
   "codex-login",
+diff --git a/codex-rs/tui/src/app/thread_routing.rs b/codex-rs/tui/src/app/thread_routing.rs
+index a87d2b5..60efd8b 100644
+--- a/codex-rs/tui/src/app/thread_routing.rs
++++ b/codex-rs/tui/src/app/thread_routing.rs
+@@ -657,6 +657,7 @@ impl App {
+                 final_output_json_schema,
+                 collaboration_mode,
+                 personality,
++                client_user_message_id,
+             } => {
+                 let mut should_start_turn = true;
+                 if let Some(turn_id) = self.active_turn_id_for_thread(thread_id).await {
+@@ -664,7 +665,12 @@ impl App {
+                     let mut retried_after_turn_mismatch = false;
+                     loop {
+                         match app_server
+-                            .turn_steer(thread_id, steer_turn_id.clone(), items.to_vec())
++                            .turn_steer(
++                                thread_id,
++                                steer_turn_id.clone(),
++                                items.to_vec(),
++                                client_user_message_id.clone(),
++                            )
+                             .await
+                         {
+                             Ok(_) => return Ok(true),
+@@ -750,6 +756,7 @@ impl App {
+                             collaboration_mode.clone(),
+                             *personality,
+                             final_output_json_schema.clone(),
++                            client_user_message_id.clone(),
+                         )
+                         .await?;
+                     if self.active_thread_id == Some(thread_id)
+diff --git a/codex-rs/tui/src/app_command.rs b/codex-rs/tui/src/app_command.rs
+index fef3fbb..3a664e3 100644
+--- a/codex-rs/tui/src/app_command.rs
++++ b/codex-rs/tui/src/app_command.rs
+@@ -42,6 +42,11 @@ pub(crate) enum AppCommand {
+         final_output_json_schema: Option<Value>,
+         collaboration_mode: Option<CollaborationMode>,
+         personality: Option<Personality>,
++        /// Caller-supplied message id, persisted by core on the rollout
++        /// `user_message` as `client_id`. Set for steers (the queued-input
++        /// ledger's `queued_id`) so a committed steer is identifiable without
++        /// content matching.
++        client_user_message_id: Option<String>,
+     },
+     OverrideTurnContext {
+         cwd: Option<PathBuf>,
+@@ -124,6 +129,7 @@ impl AppCommand {
+         final_output_json_schema: Option<Value>,
+         collaboration_mode: Option<CollaborationMode>,
+         personality: Option<Personality>,
++        client_user_message_id: Option<String>,
+     ) -> Self {
+         Self::UserTurn {
+             items,
+@@ -138,6 +144,7 @@ impl AppCommand {
+             final_output_json_schema,
+             collaboration_mode,
+             personality,
++            client_user_message_id,
+         }
+     }
+ 
+diff --git a/codex-rs/tui/src/app_server_session.rs b/codex-rs/tui/src/app_server_session.rs
+index 81b3869..1be2071 100644
+--- a/codex-rs/tui/src/app_server_session.rs
++++ b/codex-rs/tui/src/app_server_session.rs
+@@ -908,6 +908,7 @@ impl AppServerSession {
+         collaboration_mode: Option<codex_protocol::config_types::CollaborationMode>,
+         personality: Option<codex_protocol::config_types::Personality>,
+         output_schema: Option<serde_json::Value>,
++        client_user_message_id: Option<String>,
+     ) -> Result<TurnStartResponse> {
+         let request_id = self.next_request_id();
+         let (sandbox_policy, permissions) =
+@@ -917,7 +918,7 @@ impl AppServerSession {
+                 request_id,
+                 params: TurnStartParams {
+                     thread_id: thread_id.to_string(),
+-                    client_user_message_id: None,
++                    client_user_message_id,
+                     input: items,
+                     responsesapi_client_metadata: None,
+                     additional_context: None,
+@@ -973,6 +974,7 @@ impl AppServerSession {
+         thread_id: ThreadId,
+         turn_id: String,
+         items: Vec<UserInput>,
++        client_user_message_id: Option<String>,
+     ) -> std::result::Result<TurnSteerResponse, TypedRequestError> {
+         let request_id = self.next_request_id();
+         self.client
+@@ -980,7 +982,7 @@ impl AppServerSession {
+                 request_id,
+                 params: TurnSteerParams {
+                     thread_id: thread_id.to_string(),
+-                    client_user_message_id: None,
++                    client_user_message_id,
+                     input: items,
+                     responsesapi_client_metadata: None,
+                     additional_context: None,
 diff --git a/codex-rs/tui/src/bottom_pane/chat_composer.rs b/codex-rs/tui/src/bottom_pane/chat_composer.rs
 index 7ca6bb0..25aae93 100644
 --- a/codex-rs/tui/src/bottom_pane/chat_composer.rs
@@ -1574,7 +1678,7 @@ index 6ca1ba9..304884c 100644
      fn goal_command_allows_extra_os_for_dispatch() {
          assert_eq!(
 diff --git a/codex-rs/tui/src/chatwidget.rs b/codex-rs/tui/src/chatwidget.rs
-index a3d539e..ff5aa2c 100644
+index a3d539e..33161e8 100644
 --- a/codex-rs/tui/src/chatwidget.rs
 +++ b/codex-rs/tui/src/chatwidget.rs
 @@ -346,6 +346,7 @@ mod goal_menu;
@@ -1585,6 +1689,17 @@ index a3d539e..ff5aa2c 100644
  use self::input_queue::InputQueueState;
  mod input_flow;
  mod input_restore;
+@@ -1283,6 +1284,10 @@ impl ChatWidget {
+             .is_some_and(|pending| pending.compare_key == compare_key)
+         {
+             if let Some(pending) = self.input_queue.pending_steers.pop_front() {
++                // The steer just landed as a real turn: close its ledger entry.
++                if let Some(queued_id) = pending.queued_id.as_deref() {
++                    queued_input_log::append_queued_committed(&self.config.codex_home, queued_id);
++                }
+                 self.refresh_pending_input_preview();
+                 let pending_display =
+                     user_message_display_for_history(pending.user_message, &pending.history_record);
 diff --git a/codex-rs/tui/src/chatwidget/input_flow.rs b/codex-rs/tui/src/chatwidget/input_flow.rs
 index f26d50a..a8e1343 100644
 --- a/codex-rs/tui/src/chatwidget/input_flow.rs
@@ -1601,11 +1716,127 @@ index f26d50a..a8e1343 100644
              InputResult::CommandWithArgs(cmd, args, text_elements) => {
                  self.handle_slash_command_with_args_dispatch(cmd, args, text_elements);
              }
+diff --git a/codex-rs/tui/src/chatwidget/input_queue.rs b/codex-rs/tui/src/chatwidget/input_queue.rs
+index 67a306a..c37abef 100644
+--- a/codex-rs/tui/src/chatwidget/input_queue.rs
++++ b/codex-rs/tui/src/chatwidget/input_queue.rs
+@@ -117,6 +117,7 @@ mod tests {
+                 message: "pending".to_string(),
+                 image_count: 0,
+             },
++            queued_id: None,
+         });
+ 
+         assert_eq!(
+diff --git a/codex-rs/tui/src/chatwidget/input_restore.rs b/codex-rs/tui/src/chatwidget/input_restore.rs
+index 101e3ec..e53b85a 100644
+--- a/codex-rs/tui/src/chatwidget/input_restore.rs
++++ b/codex-rs/tui/src/chatwidget/input_restore.rs
+@@ -107,6 +107,11 @@ impl ChatWidget {
+             );
+             return false;
+         };
++        // Core bounced it (`ActiveTurnNotSteerable`): as written, the steer is
++        // gone. Its later automatic resubmission opens an ordinary fresh turn.
++        if let Some(queued_id) = pending_steer.queued_id.as_deref() {
++            queued_input_log::append_queued_retracted(&self.config.codex_home, queued_id);
++        }
+         self.input_queue
+             .rejected_steers_queue
+             .push_back(pending_steer.user_message);
+@@ -144,12 +149,17 @@ impl ChatWidget {
+         // interrupted turn reaches the UI, so any unacknowledged steers still
+         // tracked here must be restored locally instead of waiting for a later commit.
+         if send_pending_steers_immediately {
+-            let pending_steers = self
+-                .input_queue
+-                .pending_steers
+-                .drain(..)
+-                .map(|pending| (pending.user_message, pending.history_record))
+-                .collect::<Vec<_>>();
++            let mut pending_steers = Vec::new();
++            for pending in self.input_queue.pending_steers.drain(..) {
++                // Esc with steers pending resubmits them merged into one fresh
++                // turn below, so each entry's content still becomes a turn:
++                // committed, not retracted. The merged turn is a new submission
++                // and carries no ledger id of its own.
++                if let Some(queued_id) = pending.queued_id.as_deref() {
++                    queued_input_log::append_queued_committed(&self.config.codex_home, queued_id);
++                }
++                pending_steers.push((pending.user_message, pending.history_record));
++            }
+             if !pending_steers.is_empty() {
+                 let (user_message, history_record) =
+                     merge_user_messages_with_history_record(pending_steers);
+@@ -205,12 +215,13 @@ impl ChatWidget {
+             .zip(rejected_history_records.iter())
+             .map(|(message, history_record)| user_message_for_restore(message, history_record))
+             .collect();
+-        to_merge.extend(
+-            self.input_queue
+-                .pending_steers
+-                .drain(..)
+-                .map(|steer| user_message_for_restore(steer.user_message, &steer.history_record)),
+-        );
++        to_merge.extend(self.input_queue.pending_steers.drain(..).map(|steer| {
++            // Back into the composer, unsent: retracted.
++            if let Some(queued_id) = steer.queued_id.as_deref() {
++                queued_input_log::append_queued_retracted(&self.config.codex_home, queued_id);
++            }
++            user_message_for_restore(steer.user_message, &steer.history_record)
++        }));
+         let queued_messages = self
+             .input_queue
+             .queued_user_messages
+@@ -376,6 +387,14 @@ impl ChatWidget {
+         input_state: Option<ThreadInputState>,
+         restore_mode: ThreadInputStateRestoreMode,
+     ) {
++        // Every branch below replaces the live pending-steer queue (snapshot
++        // restore, safety-retry re-route, or clear), so the ledger stops
++        // tracking the current entries here. Restored steers carry no id.
++        for pending in &self.input_queue.pending_steers {
++            if let Some(queued_id) = pending.queued_id.as_deref() {
++                queued_input_log::append_queued_retracted(&self.config.codex_home, queued_id);
++            }
++        }
+         let preserve_in_flight_turn = restore_mode.preserve_in_flight_turn;
+         let restored_task_running =
+             preserve_in_flight_turn && input_state.as_ref().is_some_and(|state| state.task_running);
+@@ -418,6 +437,7 @@ impl ChatWidget {
+                         }),
+                         history_record,
+                         user_message,
++                        queued_id: None,
+                     })
+                     .collect();
+             } else {
 diff --git a/codex-rs/tui/src/chatwidget/input_submission.rs b/codex-rs/tui/src/chatwidget/input_submission.rs
-index 830cd3e..e627309 100644
+index 830cd3e..51d7837 100644
 --- a/codex-rs/tui/src/chatwidget/input_submission.rs
 +++ b/codex-rs/tui/src/chatwidget/input_submission.rs
-@@ -405,6 +405,17 @@ impl ChatWidget {
+@@ -327,6 +327,10 @@ impl ChatWidget {
+             },
+             history_record: history_record.clone(),
+             compare_key: Self::pending_steer_compare_key_from_items(&items),
++            // Minted before the op is built so the same id rides the turn's
++            // `client_user_message_id` and comes back on the committed rollout
++            // `user_message` as `client_id` -- the content-free commit join.
++            queued_id: Some(uuid::Uuid::new_v4().to_string()),
+         });
+         let personality = self
+             .config
+@@ -347,6 +351,9 @@ impl ChatWidget {
+             /*final_output_json_schema*/ None,
+             collaboration_mode,
+             personality,
++            pending_steer
++                .as_ref()
++                .and_then(|steer| steer.queued_id.clone()),
+         );
+         let submitted_message = UserMessage {
+             text,
+@@ -405,6 +412,20 @@ impl ChatWidget {
          }
  
          if let Some(pending_steer) = pending_steer {
@@ -1615,11 +1846,14 @@ index 830cd3e..e627309 100644
 +            // can tell an accepted message from a dropped one. This is the queue
 +            // codex surfaces as "Messages to be submitted after next tool call".
 +            // See `queued_input_log` for why it is a sidecar and not the rollout.
-+            crate::chatwidget::queued_input_log::append_queued_input(
-+                &self.config.codex_home,
-+                self.thread_id.map(|id| id.to_string()).as_deref(),
-+                &pending_steer.user_message.text,
-+            );
++            if let Some(queued_id) = pending_steer.queued_id.as_deref() {
++                crate::chatwidget::queued_input_log::append_queued_input(
++                    &self.config.codex_home,
++                    queued_id,
++                    self.thread_id.map(|id| id.to_string()).as_deref(),
++                    &pending_steer.user_message.text,
++                );
++            }
              self.input_queue.pending_steers.push_back(pending_steer);
              self.transcript.saw_plan_item_this_turn = false;
              self.refresh_pending_input_preview();
@@ -1746,11 +1980,11 @@ index c8ace98..4314d6b 100644
          let subtitle = subtitle.to_string();
 diff --git a/codex-rs/tui/src/chatwidget/queued_input_log.rs b/codex-rs/tui/src/chatwidget/queued_input_log.rs
 new file mode 100644
-index 0000000..bc209f5
+index 0000000..6bc7d92
 --- /dev/null
 +++ b/codex-rs/tui/src/chatwidget/queued_input_log.rs
-@@ -0,0 +1,184 @@
-+//! Append-only log of user input queued while a turn is running.
+@@ -0,0 +1,250 @@
++//! Append-only ledger of user input queued while a turn is running.
 +//!
 +//! # Why this exists
 +//!
@@ -1758,25 +1992,40 @@ index 0000000..bc209f5
 +//! *steer*: `submit_user_message` hands it to core and parks a `PendingSteer` in
 +//! `InputQueueState::pending_steers`. codex shows these under "Messages to be
 +//! submitted after next tool call". Core holds it in its own in-memory pending
-+//! input (`extend_pending_input_and_accept_mailbox_delivery_for_turn_state`)
-+//! and writes nothing to the rollout until it injects the message at the next
-+//! tool-call boundary. Until then nothing outside the process can observe that
-+//! the message was accepted.
++//! input and writes nothing to the rollout until it injects the message at the
++//! next tool-call boundary. Until then nothing outside the process can observe
++//! that the message was accepted -- and if it is pulled back out (Esc, a
++//! rejected steer, a thread switch), nothing observes that either.
 +//!
 +//! Note this is `pending_steers`, not `queued_user_messages`. Despite the name,
 +//! the latter is not the mid-turn queue -- it is the "TUI cannot submit at all"
 +//! buffer (session still booting, a plan streaming, a `!shell` command running,
 +//! or a settings modal open) and is drained only once no turn is running.
 +//!
-+//! That is a problem for a harness driving codex. Minds renders an optimistic
-+//! bubble the instant you send and flips it to "Queued" once the backend
-+//! confirms acceptance. For Claude Code that confirmation is a
-+//! `queue-operation`/`enqueue` record, written the moment input is queued. codex
-+//! has no equivalent, so its confirmation falls back to the `active` marker file
-+//! -- and that marker is set by the UserPromptSubmit hook, which by definition
-+//! does not fire for a message that was queued rather than started. The
-+//! confirmation therefore cannot arrive until the current turn ends, and a
-+//! mid-turn send looks indistinguishable from a dropped one.
++//! # The ledger model
++//!
++//! A harness driving codex (Minds) renders the queue by folding this file, the
++//! same way it folds Claude Code's `queue-operation` records: every entry that
++//! enters the queue gets an `queued_input` record, and every entry that leaves
++//! it gets exactly one terminating record. The conservation law a reader may
++//! rely on:
++//!
++//! ```text
++//! queued_input = queued_committed + queued_retracted
++//! ```
++//!
++//! so replaying the whole file nets to exactly the still-pending set, with no
++//! durable cursor. Resolution is by `queued_id`, never by content -- text
++//! matching cannot tell two identical messages apart and cannot represent a
++//! retraction at all.
++//!
++//! - `queued_committed`: the steer was injected into the turn (or resubmitted
++//!   as part of a merged post-interrupt turn). The message text now lands in
++//!   the rollout as an ordinary `user_message`; when the steer was injected
++//!   directly, that rollout record carries this `queued_id` as its `client_id`.
++//! - `queued_retracted`: the steer left the queue without committing as
++//!   written -- drained back into the composer on interrupt, bounced by core
++//!   (`ActiveTurnNotSteerable`), or dropped by a thread switch/clear.
 +//!
 +//! # Why a sidecar and not the rollout
 +//!
@@ -1788,9 +2037,10 @@ index 0000000..bc209f5
 +//! truncates the rollout, so an outside append is not merely racy).
 +//!
 +//! The trade-off is that these records are not part of the durable session and
-+//! do not survive `codex resume` reconstruction. That is acceptable: the record
-+//! exists to answer "was this accepted, right now", and the message itself lands
-+//! in the rollout as a normal user turn when it is finally sent.
++//! do not survive `codex resume` or a thread switch: `restore_thread_input_state`
++//! closes every live entry as retracted, and restored steers carry no id. That
++//! is acceptable -- the ledger answers "what is pending, right now", and the
++//! durable record of a message is the rollout turn it becomes.
 +//!
 +//! # Format
 +//!
@@ -1798,25 +2048,26 @@ index 0000000..bc209f5
 +//!
 +//! ```json
 +//! {"type":"queued_input","queued_id":"...","thread_id":"...","timestamp":"...","content":"..."}
++//! {"type":"queued_committed","queued_id":"...","timestamp":"..."}
++//! {"type":"queued_retracted","queued_id":"...","timestamp":"..."}
 +//! ```
 +//!
-+//! `queued_id` is a correlation id. Claude's equivalent records omit one and
-+//! rely on matching queued text against the transcript, which is brittle enough
-+//! that the Minds frontend carries a FIXME asking for exactly this id: a user
-+//! who edits a queued message before it is sent changes the text, and the
-+//! optimistic bubble is then stranded until an idle-state backstop clears it.
++//! Terminating records deliberately carry no content: the content is already on
++//! the enqueue record, and re-emitting it would invite the two to disagree.
 +
 +use std::fs::OpenOptions;
 +use std::io::Write;
 +use std::path::Path;
 +use std::path::PathBuf;
 +
-+use uuid::Uuid;
-+
 +const QUEUED_INPUT_LOG_FILENAME: &str = "queued_input.jsonl";
 +
 +fn queued_input_log_path(codex_home: &Path) -> PathBuf {
 +    codex_home.join(QUEUED_INPUT_LOG_FILENAME)
++}
++
++fn rfc3339_now() -> String {
++    chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
 +}
 +
 +/// Serialize one `queued_input` record, newline-terminated.
@@ -1839,33 +2090,61 @@ index 0000000..bc209f5
 +    format!("{record}\n")
 +}
 +
-+/// Append a record for `content`, returning the correlation id.
++/// Serialize one terminating record (`queued_committed` / `queued_retracted`).
++fn queued_terminal_record(record_type: &str, queued_id: &str, timestamp: &str) -> String {
++    let record = serde_json::json!({
++        "type": record_type,
++        "queued_id": queued_id,
++        "timestamp": timestamp,
++    });
++    format!("{record}\n")
++}
++
++/// Append one line to the ledger.
 +///
 +/// Best-effort by design: this is observability for an external watcher, so a
-+/// failure to write must never interfere with queuing the message the user
-+/// actually typed. Errors are traced and swallowed, and the id is returned
-+/// either way so callers can keep their own bookkeeping consistent.
-+pub(super) fn append_queued_input(
-+    codex_home: &Path,
-+    thread_id: Option<&str>,
-+    content: &str,
-+) -> String {
-+    let queued_id = Uuid::new_v4().to_string();
-+    let timestamp = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
-+    let line = queued_input_record(&queued_id, thread_id, &timestamp, content);
-+
-+    // O_APPEND: writes under the size of a pipe buffer are atomic, so a reader
-+    // tailing this file never sees a half-written line even if some other codex
-+    // process shares this CODEX_HOME.
++/// failure to write must never interfere with the input path it observes.
++/// Errors are traced and swallowed.
++///
++/// O_APPEND: writes under the size of a pipe buffer are atomic, so a reader
++/// tailing this file never sees a half-written line even if some other codex
++/// process shares this CODEX_HOME.
++fn append_line(codex_home: &Path, line: &str) {
 +    let write_result = OpenOptions::new()
 +        .create(true)
 +        .append(true)
 +        .open(queued_input_log_path(codex_home))
 +        .and_then(|mut file| file.write_all(line.as_bytes()));
 +    if let Err(err) = write_result {
-+        tracing::warn!("failed to record queued input: {err}");
++        tracing::warn!("failed to append queued-input ledger record: {err}");
 +    }
-+    queued_id
++}
++
++/// Record that `content` entered the pending-steer queue under `queued_id`.
++///
++/// The id is minted by the caller (`PendingSteer` construction) rather than
++/// here, because the same id is also threaded into the turn's
++/// `client_user_message_id` so the committed rollout `user_message` carries it.
++pub(super) fn append_queued_input(
++    codex_home: &Path,
++    queued_id: &str,
++    thread_id: Option<&str>,
++    content: &str,
++) {
++    let line = queued_input_record(queued_id, thread_id, &rfc3339_now(), content);
++    append_line(codex_home, &line);
++}
++
++/// Record that the steer under `queued_id` was injected into a turn.
++pub(super) fn append_queued_committed(codex_home: &Path, queued_id: &str) {
++    let line = queued_terminal_record("queued_committed", queued_id, &rfc3339_now());
++    append_line(codex_home, &line);
++}
++
++/// Record that the steer under `queued_id` left the queue without committing.
++pub(super) fn append_queued_retracted(codex_home: &Path, queued_id: &str) {
++    let line = queued_terminal_record("queued_retracted", queued_id, &rfc3339_now());
++    append_line(codex_home, &line);
 +}
 +
 +#[cfg(test)]
@@ -1903,24 +2182,45 @@ index 0000000..bc209f5
 +        assert!(parsed["thread_id"].is_null());
 +    }
 +
++    /// Terminating records carry the id and no content -- the reader resolves
++    /// by id, and the content already lives on the enqueue record.
 +    #[test]
-+    fn minds_append_queued_input_appends_rather_than_truncates() {
++    fn minds_queued_terminal_records_carry_id_and_no_content() {
++        for record_type in ["queued_committed", "queued_retracted"] {
++            let line = queued_terminal_record(record_type, "qid-9", "2026-01-01T00:00:00.000Z");
++            assert_eq!(line.matches('\n').count(), 1);
++            let parsed: serde_json::Value =
++                serde_json::from_str(line.trim_end()).expect("valid JSON");
++            assert_eq!(parsed["type"], record_type);
++            assert_eq!(parsed["queued_id"], "qid-9");
++            assert!(
++                parsed.get("content").is_none(),
++                "{record_type} must not re-emit content"
++            );
++        }
++    }
++
++    /// The full lifecycle appends in order and preserves the conservation law:
++    /// replaying the file nets enqueues minus terminals to the pending set.
++    #[test]
++    fn minds_ledger_appends_lifecycle_in_order() {
 +        let dir = tempfile::tempdir().expect("tempdir");
-+        let first = append_queued_input(dir.path(), Some("t"), "first");
-+        let second = append_queued_input(dir.path(), Some("t"), "second");
-+        assert_ne!(first, second, "each queued message needs its own id");
++        append_queued_input(dir.path(), "qid-a", Some("t"), "first");
++        append_queued_input(dir.path(), "qid-b", Some("t"), "second");
++        append_queued_committed(dir.path(), "qid-a");
++        append_queued_retracted(dir.path(), "qid-b");
 +
 +        let contents = fs::read_to_string(queued_input_log_path(dir.path())).expect("log written");
-+        let lines: Vec<&str> = contents.lines().collect();
-+        assert_eq!(lines.len(), 2, "second write must not truncate the first");
-+        let parsed: Vec<serde_json::Value> = lines
-+            .iter()
++        let parsed: Vec<serde_json::Value> = contents
++            .lines()
 +            .map(|line| serde_json::from_str(line).expect("valid JSON"))
 +            .collect();
-+        assert_eq!(parsed[0]["content"], "first");
-+        assert_eq!(parsed[1]["content"], "second");
-+        assert_eq!(parsed[0]["queued_id"], first);
-+        assert_eq!(parsed[1]["queued_id"], second);
++        assert_eq!(parsed.len(), 4, "appends must not truncate");
++        assert_eq!(parsed[0]["type"], "queued_input");
++        assert_eq!(parsed[2]["type"], "queued_committed");
++        assert_eq!(parsed[2]["queued_id"], "qid-a");
++        assert_eq!(parsed[3]["type"], "queued_retracted");
++        assert_eq!(parsed[3]["queued_id"], "qid-b");
 +    }
 +
 +    /// The user's message must still be queued when the log cannot be written,
@@ -1929,13 +2229,13 @@ index 0000000..bc209f5
 +    fn minds_append_queued_input_survives_an_unwritable_directory() {
 +        let dir = tempfile::tempdir().expect("tempdir");
 +        let missing = dir.path().join("does-not-exist");
-+        let queued_id = append_queued_input(&missing, None, "still returns an id");
-+        assert!(!queued_id.is_empty());
++        append_queued_input(&missing, "qid-1", None, "does not panic");
++        append_queued_committed(&missing, "qid-1");
 +        assert!(!queued_input_log_path(&missing).exists());
 +    }
 +}
 diff --git a/codex-rs/tui/src/chatwidget/service_tiers.rs b/codex-rs/tui/src/chatwidget/service_tiers.rs
-index 7338673..86a47a8 100644
+index 7338673..87a51dc 100644
 --- a/codex-rs/tui/src/chatwidget/service_tiers.rs
 +++ b/codex-rs/tui/src/chatwidget/service_tiers.rs
 @@ -72,6 +72,26 @@ impl ChatWidget {
@@ -1965,6 +2265,73 @@ index 7338673..86a47a8 100644
      pub(super) fn sync_service_tier_commands(&mut self) {
          self.bottom_pane
              .set_service_tier_commands_enabled(self.fast_mode_enabled());
+@@ -154,5 +174,9 @@ impl ChatWidget {
+             self.current_model(),
+             &self.model_catalog.try_list_models().unwrap_or_default(),
+         );
++        // Tier can change here without a model-display refresh (fast-mode
++        // feature toggles; `apply_thread_settings` re-resolves the tier after
++        // its last display refresh), so mirror the state file from both hooks.
++        self.write_model_state_file();
+     }
+ }
+diff --git a/codex-rs/tui/src/chatwidget/settings.rs b/codex-rs/tui/src/chatwidget/settings.rs
+index 58fe920..560da41 100644
+--- a/codex-rs/tui/src/chatwidget/settings.rs
++++ b/codex-rs/tui/src/chatwidget/settings.rs
+@@ -473,6 +473,52 @@ impl ChatWidget {
+         let effort = self.effective_reasoning_effort();
+         self.bottom_pane
+             .set_active_reasoning_effort(effort.as_ref());
++        self.write_model_state_file();
++    }
++
++    /// Mirror the effective model / effort / service tier to
++    /// `$CODEX_HOME/minds_model_state.json` for an external watcher (Minds).
++    ///
++    /// Every model, effort, or collaboration-mode mutation converges on
++    /// `refresh_model_display` -- user commands (`/model`, `/fast`, plan mode)
++    /// and framework-initiated changes alike: the `SessionConfigured`
++    /// startup/resume path, server-pushed `ThreadSettingsUpdated`
++    /// (`apply_thread_settings`), thread-switch restores, and the rate-limit
++    /// "switch model" prompt (which routes through `set_model`). The two tier
++    /// mutations that bypass it (fast-mode feature toggles and
++    /// `apply_thread_settings`' trailing tier re-resolution) are covered by the
++    /// second hook in `refresh_effective_service_tier`. The file exists as soon
++    /// as a session opens, before any turn runs. The rollout's
++    /// `thread_settings_applied` records cannot serve this purpose: a fresh
++    /// rollout after `codex resume` may not carry one.
++    ///
++    /// Field names and encodings mirror codex's own thread-settings wire values
++    /// (effort via `ReasoningEffortConfig::as_str`, tier as its raw request
++    /// value, e.g. "priority"), with unset fields omitted. Written atomically;
++    /// best-effort, because a settings refresh must never fail on a bad
++    /// filesystem.
++    pub(super) fn write_model_state_file(&self) {
++        let mut state = serde_json::Map::new();
++        state.insert(
++            "model".to_string(),
++            self.effective_collaboration_mode().model().into(),
++        );
++        if let Some(effort) = self.effective_reasoning_effort() {
++            state.insert("reasoning_effort".to_string(), effort.as_str().into());
++        }
++        if let Some(service_tier) = self.current_service_tier() {
++            state.insert("service_tier".to_string(), service_tier.into());
++        }
++        let contents = serde_json::Value::Object(state).to_string();
++        if let Err(err) = codex_utils_path::write_atomically(
++            self.config
++                .codex_home
++                .join("minds_model_state.json")
++                .as_path(),
++            &contents,
++        ) {
++            tracing::warn!("failed to write minds_model_state.json: {err}");
++        }
+     }
+ 
+     /// Refresh every UI surface that depends on the effective model, reasoning
 diff --git a/codex-rs/tui/src/chatwidget/slash_dispatch.rs b/codex-rs/tui/src/chatwidget/slash_dispatch.rs
 index e28cfd7..a66edd8 100644
 --- a/codex-rs/tui/src/chatwidget/slash_dispatch.rs
@@ -2102,6 +2469,145 @@ index e28cfd7..a66edd8 100644
          match cmd {
              SlashCommand::Ide
              | SlashCommand::Status
+diff --git a/codex-rs/tui/src/chatwidget/tests.rs b/codex-rs/tui/src/chatwidget/tests.rs
+index b8cd9e2..f00dcd4 100644
+--- a/codex-rs/tui/src/chatwidget/tests.rs
++++ b/codex-rs/tui/src/chatwidget/tests.rs
+@@ -243,6 +243,7 @@ mod guardian;
+ pub(crate) mod helpers;
+ mod history_replay;
+ mod mcp_startup;
++mod minds_queue_ledger;
+ mod permissions;
+ mod plan_mode;
+ #[path = "tests/plugin_catalog_tests.rs"]
+diff --git a/codex-rs/tui/src/chatwidget/tests/helpers.rs b/codex-rs/tui/src/chatwidget/tests/helpers.rs
+index f466978..1c408a5 100644
+--- a/codex-rs/tui/src/chatwidget/tests/helpers.rs
++++ b/codex-rs/tui/src/chatwidget/tests/helpers.rs
+@@ -938,6 +938,7 @@ pub(super) fn pending_steer(text: &str) -> PendingSteer {
+             message: text.to_string(),
+             image_count: 0,
+         },
++        queued_id: None,
+     }
+ }
+ 
+diff --git a/codex-rs/tui/src/chatwidget/tests/minds_queue_ledger.rs b/codex-rs/tui/src/chatwidget/tests/minds_queue_ledger.rs
+new file mode 100644
+index 0000000..9a3401b
+--- /dev/null
++++ b/codex-rs/tui/src/chatwidget/tests/minds_queue_ledger.rs
+@@ -0,0 +1,109 @@
++//! Integration checks for the queued-input ledger emit sites: a mid-turn
++//! submit writes `queued_input` and threads the same id into the turn's
++//! `client_user_message_id`; an interrupt resolves parked steers to
++//! `queued_committed` (Esc flush) or `queued_retracted` (plain interrupt).
++//! Record-format details are covered by `queued_input_log`'s own tests.
++
++use super::*;
++use crate::app_command::AppCommand;
++use pretty_assertions::assert_eq;
++
++fn ledger_records(codex_home: &std::path::Path) -> Vec<serde_json::Value> {
++    let ledger = std::fs::read_to_string(codex_home.join("queued_input.jsonl"))
++        .expect("ledger file written");
++    ledger
++        .lines()
++        .map(|line| serde_json::from_str(line).expect("ledger line is JSON"))
++        .collect()
++}
++
++#[tokio::test]
++async fn minds_mid_turn_submit_writes_ledger_and_threads_id() {
++    let (mut chat, _rx, mut op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
++    let codex_home = tempfile::tempdir().expect("tempdir");
++    chat.config.codex_home =
++        AbsolutePathBuf::try_from(codex_home.path().to_path_buf()).expect("absolute");
++    chat.thread_id = Some(ThreadId::new());
++    chat.on_task_started();
++
++    chat.submit_user_message(UserMessage::from("steer me"));
++
++    let steer = chat
++        .input_queue
++        .pending_steers
++        .front()
++        .expect("mid-turn submit parks a steer");
++    let queued_id = steer.queued_id.clone().expect("ledger id minted");
++
++    let records = ledger_records(codex_home.path());
++    assert_eq!(records.len(), 1);
++    assert_eq!(records[0]["type"], "queued_input");
++    assert_eq!(records[0]["queued_id"], queued_id.as_str());
++    assert_eq!(records[0]["content"], "steer me");
++
++    let mut client_id = None;
++    while let Ok(op) = op_rx.try_recv() {
++        if let AppCommand::UserTurn {
++            client_user_message_id,
++            ..
++        } = op
++        {
++            client_id = client_user_message_id;
++        }
++    }
++    assert_eq!(client_id.as_deref(), Some(queued_id.as_str()));
++}
++
++#[tokio::test]
++async fn minds_interrupt_resolves_pending_steers_in_the_ledger() {
++    for (flush, expected) in [(false, "queued_retracted"), (true, "queued_committed")] {
++        let (mut chat, _rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
++        let codex_home = tempfile::tempdir().expect("tempdir");
++        chat.config.codex_home =
++            AbsolutePathBuf::try_from(codex_home.path().to_path_buf()).expect("absolute");
++        chat.thread_id = Some(ThreadId::new());
++        chat.on_task_started();
++
++        let mut steer = pending_steer("parked text");
++        steer.queued_id = Some("tap-under-test".to_string());
++        chat.input_queue.pending_steers.push_back(steer);
++        chat.input_queue.submit_pending_steers_after_interrupt = flush;
++
++        chat.on_interrupted_turn(TurnAbortReason::Interrupted);
++
++        // The flush path resubmits the merged text, which may itself write a
++        // fresh `queued_input` line under a new id -- filter to the id under
++        // test rather than assuming file order.
++        let resolutions: Vec<String> = ledger_records(codex_home.path())
++            .into_iter()
++            .filter(|record| record["queued_id"] == "tap-under-test")
++            .map(|record| record["type"].as_str().expect("type").to_string())
++            .collect();
++        assert_eq!(resolutions, vec![expected.to_string()], "flush={flush}");
++    }
++}
++
++#[tokio::test]
++async fn minds_model_state_file_mirrors_the_effective_model() {
++    let (mut chat, _rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
++    let codex_home = tempfile::tempdir().expect("tempdir");
++    chat.config.codex_home =
++        AbsolutePathBuf::try_from(codex_home.path().to_path_buf()).expect("absolute");
++
++    chat.refresh_model_display();
++
++    let state_path = codex_home.path().join("minds_model_state.json");
++    let state = std::fs::read_to_string(&state_path).expect("state file written");
++    let state: serde_json::Value = serde_json::from_str(&state).expect("state is JSON");
++    assert_eq!(
++        state["model"].as_str().expect("model recorded"),
++        chat.effective_collaboration_mode().model()
++    );
++
++    // Tier mutations that bypass refresh_model_display (fast-mode feature
++    // toggles, apply_thread_settings' trailing re-resolution) go through
++    // refresh_effective_service_tier, which must also rewrite the mirror.
++    std::fs::remove_file(&state_path).expect("remove state file");
++    chat.refresh_effective_service_tier();
++    assert!(state_path.exists(), "tier refresh rewrites the state file");
++}
 diff --git a/codex-rs/tui/src/chatwidget/tests/slash_commands.rs b/codex-rs/tui/src/chatwidget/tests/slash_commands.rs
 index 47d597d..2e143ca 100644
 --- a/codex-rs/tui/src/chatwidget/tests/slash_commands.rs
@@ -2335,6 +2841,22 @@ index 47d597d..2e143ca 100644
 +        "draining a queued '/fast on' must not destroy the live draft"
 +    );
 +}
+diff --git a/codex-rs/tui/src/chatwidget/user_messages.rs b/codex-rs/tui/src/chatwidget/user_messages.rs
+index ca92adb..de8a121 100644
+--- a/codex-rs/tui/src/chatwidget/user_messages.rs
++++ b/codex-rs/tui/src/chatwidget/user_messages.rs
+@@ -175,6 +175,11 @@ pub(super) struct PendingSteer {
+     pub(super) user_message: UserMessage,
+     pub(super) history_record: UserMessageHistoryRecord,
+     pub(super) compare_key: PendingSteerCompareKey,
++    /// Ledger correlation id (see `queued_input_log`). Minted at submission and
++    /// threaded into the turn's `client_user_message_id`; `None` for steers
++    /// reconstructed from a thread-state snapshot, whose ledger entries were
++    /// already closed as retracted when the snapshot was restored.
++    pub(super) queued_id: Option<String>,
+ }
+ 
+ pub(crate) fn create_initial_user_message(
 diff --git a/codex-rs/tui/src/slash_command.rs b/codex-rs/tui/src/slash_command.rs
 index abd1386..5745a68 100644
 --- a/codex-rs/tui/src/slash_command.rs

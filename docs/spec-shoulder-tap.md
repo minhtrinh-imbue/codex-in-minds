@@ -98,15 +98,16 @@ The patch in this repo adds a sidecar, one line per queued message, at
 {"type":"queued_input","queued_id":"f125a204-…","thread_id":"019fd9ae-…","timestamp":"…","content":"STEER_ALPHA"}
 ```
 
-This is the mirror image of Claude's situation. codex has **an id and no
-lifecycle**; Claude has **a lifecycle and no id**.
+Claude has **a lifecycle and no id**; patched codex now has **both** — the
+enqueue record plus `queued_committed` / `queued_retracted` terminal records,
+each `{type, queued_id, timestamp}`.
 
 | | codex (patched) | Claude Code |
 |---|---|---|
-| enqueue | yes, **with a stable id** | yes, content only |
-| dequeue | **missing** — infer from the rollout | yes |
-| remove | **missing** | yes |
-| correlation | by id | positional, FIFO |
+| enqueue | yes, **with a stable id** (`queued_input`) | yes, content only |
+| dequeue | yes (`queued_committed`) | yes |
+| remove | yes (`queued_retracted`) | yes |
+| correlation | by id, echoed on the rollout turn as `client_id` | positional, FIFO |
 
 ---
 
@@ -148,7 +149,7 @@ Three rules follow, and they are the whole design:
 
 ---
 
-## 4. Make codex emit the id it already supports
+## 4. Make codex emit the id it already supports — **shipped in v0.146.0**
 
 Before building any of this, close the codex gap properly. Today the sidecar's
 `queued_id` is generated locally and never echoed anywhere, so it correlates the
@@ -219,9 +220,8 @@ Tail `$CODEX_HOME/queued_input.jsonl` and the rollout together.
   is the authoritative one; the sidecar's `queued_committed` is a latency
   optimization so the UI can settle before the rollout write lands.
 
-Until §4 ships, substitute for the missing records: COMMITTED when a rollout
-`user_message` matches the pending content within the same `thread_id`, and rely
-on §6's reconciliation for RETRACTED.
+All three records ship in the current binary, so no content-matching stopgap is
+needed.
 
 ### Claude adapter
 

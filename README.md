@@ -68,37 +68,65 @@ Blocked commands are hidden from the `/` popup and, if typed in full, produce
 the stock `Unrecognized command` message. Both go through one filter, because
 the popup and typed dispatch share a single choke point.
 
-**4. Queued input is recorded the instant it is queued.**
+**4. Queued input gets a full lifecycle ledger, with an id that reaches the
+transcript.**
 
-Submit while a turn is running and codex holds the message in memory only. It
-reaches the transcript when the running turn finally ends, so until then nothing
-outside the process can tell an accepted message from a dropped one. Minds shows
-an optimistic bubble on send and flips it to "Queued" once the backend confirms
-acceptance -- but codex's confirmation comes from the `active` marker, set by the
-UserPromptSubmit hook, which by definition does not fire for a message that was
-queued rather than started.
-
-Each queued message now appends one line to `$CODEX_HOME/queued_input.jsonl`:
+Submit while a turn is running and codex parks the message in its in-memory
+steer queue ("Messages to be submitted after next tool call"). Upstream, nothing
+outside the process can tell an accepted message from a dropped one until the
+turn ends. The patch records the whole lifecycle in a sidecar at
+`$CODEX_HOME/queued_input.jsonl`:
 
 ```json
-{"type":"queued_input","queued_id":"...","thread_id":"...","timestamp":"...","content":"..."}
+{"type":"queued_input","queued_id":"…","thread_id":"…","timestamp":"…","content":"…"}
+{"type":"queued_committed","queued_id":"…","timestamp":"…"}
+{"type":"queued_retracted","queued_id":"…","timestamp":"…"}
 ```
 
-codex's queue itself is untouched -- ordering, draining and the slash-command
-paths all behave exactly as before. This only observes the branch that was
-already there.
+- `queued_input` — the moment the steer is accepted (`pending_steers.push_back`).
+- `queued_committed` — the steer became a real turn: core injected it, or Esc
+  flushed the queue into one merged turn.
+- `queued_retracted` — it never will as written: core bounced it
+  (`ActiveTurnNotSteerable`), a plain interrupt drained it back into the
+  composer, or the thread state was replaced or cleared.
 
-`queued_id` is a correlation id. Claude Code's equivalent records omit one and
-leave readers matching on message text, which is brittle enough that the Minds
-frontend carries a FIXME asking for exactly this.
+The same `queued_id` is threaded into the turn's `client_user_message_id` —
+plumbing codex already carries end to end but never used from the TUI — so the
+committed rollout `user_message` comes back with that id as `client_id`.
+Finding the committed turn is a key lookup, not a text search. Claude Code's
+equivalent records omit an id and leave readers matching on message text,
+which is brittle enough that the Minds frontend carries a FIXME asking for
+exactly this.
+
+codex's queue itself is untouched -- ordering, draining and the slash-command
+paths all behave exactly as before. This only observes the branches that were
+already there.
 
 > **Why a sidecar and not the rollout.** The rollout JSONL is written by core,
 > and the TUI reaches core through the in-process app-server -- appending a
 > rollout item from the TUI needs a new protocol request, a processor and a core
 > handler across four crates. The trade-off is that these records are not part of
 > the durable session and do not survive `codex resume`. That is fine: they
-> answer "was this accepted, right now", and the message still lands in the
-> rollout as a normal user turn once it is sent.
+> answer "what is happening right now", and the durable record of a message is
+> the rollout turn it becomes -- now carrying the same id.
+
+**5. The effective model is mirrored to disk.**
+
+Every model or effort change converges on one refresh path, and every
+service-tier change on a second; both now write
+`$CODEX_HOME/minds_model_state.json` atomically:
+
+```json
+{"model":"gpt-5.4","reasoning_effort":"high","service_tier":"priority"}
+```
+
+This covers framework-initiated changes, not just `/model` and `/fast`: session
+configure and resume, server-pushed thread-settings updates, thread switches,
+the out-of-usage "switch model" prompt, and fast-mode feature toggles all land
+in the file. So an external watcher can answer "what is codex actually running
+right now" without scraping the status line -- `config.toml` only knows the
+launch values, not what changed mid-session. Unset fields are omitted; the file
+exists as soon as the session opens.
 
 Design notes and the source-level reasoning are in **[docs/spec.md](docs/spec.md)**
 and **[docs/spec-queued-transcript.md](docs/spec-queued-transcript.md)**. How to
@@ -254,8 +282,12 @@ refuses to produce a binary if it fails. Eighteen tests, all added by the patch:
 | `minds_withheld_commands_stay_hidden_for_an_exact_prefix` | the popup does not surface a blocked command even when you type its exact name |
 | `minds_queued_input_record_is_one_json_line` | the record is a single parseable line |
 | `minds_queued_input_record_escapes_newlines_in_content` | a newline in the message cannot forge a second record |
-| `minds_append_queued_input_appends_rather_than_truncates` | a second queued message does not clobber the first, and ids are distinct |
+| `minds_queued_terminal_records_carry_id_and_no_content` | `queued_committed` / `queued_retracted` carry the id and never re-emit content |
+| `minds_ledger_appends_lifecycle_in_order` | enqueue-then-resolve lands as two ordered lines, not a clobber |
 | `minds_append_queued_input_survives_an_unwritable_directory` | a failed write never stops the message being queued |
+| `minds_mid_turn_submit_writes_ledger_and_threads_id` | a mid-turn submit writes `queued_input` and the same id rides the turn's `client_user_message_id` |
+| `minds_interrupt_resolves_pending_steers_in_the_ledger` | Esc-flush resolves a parked steer as committed; a plain interrupt as retracted |
+| `minds_model_state_file_mirrors_the_effective_model` | `minds_model_state.json` reflects the model actually in effect, and a tier-only refresh rewrites it |
 
 ### The full suite is as green as upstream's
 
